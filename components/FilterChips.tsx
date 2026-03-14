@@ -1,7 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { TimeRange } from "../lib/types";
+import { useI18n } from "../lib/i18n";
+
+const REGIONS = [
+  { id: "western-galilee", label: "Western Galilee" },
+  { id: "upper-galilee", label: "Upper Galilee" },
+  { id: "lower-galilee", label: "Lower Galilee" },
+  { id: "haifa-krayot", label: "Haifa & Krayot" },
+  { id: "jezreel-valley", label: "Jezreel Valley" },
+  { id: "golan-heights", label: "Golan Heights" },
+  { id: "sharon", label: "Sharon" },
+  { id: "tel-aviv-gush-dan", label: "Tel Aviv & Gush Dan" },
+  { id: "central", label: "Central" },
+  { id: "jerusalem", label: "Jerusalem" },
+  { id: "shfela", label: "Shfela" },
+  { id: "ashkelon-coast", label: "Ashkelon Coast" },
+  { id: "negev", label: "Negev" },
+  { id: "gaza-envelope", label: "Gaza Envelope" },
+  { id: "eilat-arava", label: "Eilat & Arava" },
+];
 
 interface FilterChipsProps {
   activeRange: TimeRange;
@@ -13,11 +32,11 @@ interface FilterChipsProps {
   loading?: boolean;
 }
 
-const TIME_RANGES: { value: TimeRange; label: string }[] = [
-  { value: "24h", label: "Last 24h" },
-  { value: "7d", label: "7 days" },
-  { value: "30d", label: "30 days" },
-  { value: "custom", label: "Custom" },
+const TIME_RANGE_KEYS: { value: TimeRange; key: string }[] = [
+  { value: "24h", key: "filter.24h" },
+  { value: "7d", key: "filter.7d" },
+  { value: "30d", key: "filter.30d" },
+  { value: "custom", key: "filter.custom" },
 ];
 
 export function FilterChips({
@@ -29,9 +48,23 @@ export function FilterChips({
   alertCount,
   loading,
 }: FilterChipsProps) {
+  const { t } = useI18n();
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const regionRef = useRef<HTMLDivElement>(null);
+
+  // Close region dropdown on click outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (regionRef.current && !regionRef.current.contains(e.target as Node)) {
+        setShowRegionPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   function handleChipClick(value: TimeRange) {
     if (value === "custom") {
@@ -55,7 +88,7 @@ export function FilterChips({
     <div className="flex-shrink-0">
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex items-center gap-2 px-4 py-2.5 w-max">
-          {TIME_RANGES.map(({ value, label }) => {
+          {TIME_RANGE_KEYS.map(({ value, key }) => {
             const active = activeRange === value;
             return (
               <button
@@ -67,39 +100,66 @@ export function FilterChips({
                     : "bg-bg-surface text-text-secondary border-border"
                 }`}
               >
-                {label}
+                {t(key)}
               </button>
             );
           })}
 
           <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
 
-          <button
-            onClick={() => regionId !== null && onRegionChange(null)}
-            className={`px-3.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors whitespace-nowrap flex items-center gap-1 ${
-              regionId !== null
-                ? "bg-accent-blue/15 text-accent-blue border-accent-blue/25"
-                : "bg-bg-surface text-text-secondary border-border"
-            }`}
-          >
-            {regionId !== null ? (
-              <>
-                <span>{regionId}</span>
-                <span
-                  role="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRegionChange(null);
-                  }}
-                  className="ml-0.5 opacity-70 hover:opacity-100"
+          <div className="relative" ref={regionRef}>
+            <button
+              onClick={() => setShowRegionPicker((prev) => !prev)}
+              className={`px-3.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors whitespace-nowrap flex items-center gap-1 ${
+                regionId !== null
+                  ? "bg-accent-blue/15 text-accent-blue border-accent-blue/25"
+                  : "bg-bg-surface text-text-secondary border-border"
+              }`}
+            >
+              {regionId !== null ? (
+                <>
+                  <span>{REGIONS.find((r) => r.id === regionId)?.label ?? regionId}</span>
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRegionChange(null);
+                      setShowRegionPicker(false);
+                    }}
+                    className="ml-0.5 opacity-70 hover:opacity-100"
+                  >
+                    ✕
+                  </span>
+                </>
+              ) : (
+                <span>{t("filter.allRegions")} ↓</span>
+              )}
+            </button>
+
+            {showRegionPicker && (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-bg-elevated border border-border-active rounded-xl shadow-2xl overflow-hidden min-w-[200px] max-h-[300px] overflow-y-auto">
+                <button
+                  onClick={() => { onRegionChange(null); setShowRegionPicker(false); }}
+                  className={`w-full text-left px-3.5 py-2.5 text-[12px] transition-colors ${
+                    regionId === null ? "bg-accent-blue/10 text-accent-blue font-medium" : "text-text-secondary hover:bg-bg-surface-hover"
+                  }`}
                 >
-                  ✕
-                </span>
-              </>
-            ) : (
-              <span>All Regions ↓</span>
+                  All Regions
+                </button>
+                {REGIONS.map((region) => (
+                  <button
+                    key={region.id}
+                    onClick={() => { onRegionChange(region.id); setShowRegionPicker(false); }}
+                    className={`w-full text-left px-3.5 py-2.5 text-[12px] border-t border-border transition-colors ${
+                      regionId === region.id ? "bg-accent-blue/10 text-accent-blue font-medium" : "text-text-secondary hover:bg-bg-surface-hover"
+                    }`}
+                  >
+                    {region.label}
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Alert count indicator */}
           {alertCount !== undefined && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "../lib/i18n";
+
 type Tab = "map" | "analytics" | "feed";
 
 interface TabBarProps {
@@ -67,16 +69,19 @@ function FeedIcon({ active }: { active: boolean }) {
   );
 }
 
-const tabs: { id: Tab; label: string }[] = [
-  { id: "map", label: "Map" },
-  { id: "analytics", label: "Analytics" },
-  { id: "feed", label: "Feed" },
-];
+const tabIds: Tab[] = ["map", "analytics", "feed"];
+const tabKeys: Record<Tab, string> = {
+  map: "tab.map",
+  analytics: "tab.analytics",
+  feed: "tab.feed",
+};
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
+  const { t } = useI18n();
+
   return (
     <nav className="h-[72px] bg-bg-elevated border-t border-border flex-shrink-0 flex items-center">
-      {tabs.map(({ id, label }) => {
+      {tabIds.map((id) => {
         const active = activeTab === id;
         return (
           <button
@@ -89,7 +94,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
             {id === "map" && <MapIcon active={active} />}
             {id === "analytics" && <AnalyticsIcon active={active} />}
             {id === "feed" && <FeedIcon active={active} />}
-            <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider">{t(tabKeys[id])}</span>
           </button>
         );
       })}

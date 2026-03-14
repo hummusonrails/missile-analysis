@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "../../lib/i18n";
+
 interface MapStatsProps {
   alertCount: number;
   regionCount: number;
@@ -15,35 +17,34 @@ function formatMinutes(minutes: number | null): string {
 }
 
 export function MapStats({ alertCount, regionCount, lastAlertMinutes }: MapStatsProps) {
+  const { t } = useI18n();
+
   return (
     <div className="flex gap-2 px-3 pb-2 pt-1 flex-shrink-0">
-      {/* Alert Count */}
       <div className="flex-1 bg-bg-surface border border-border rounded-xl p-3 text-center">
         <div className="font-mono text-[22px] font-bold tracking-tight text-accent-red">
           {alertCount.toLocaleString()}
         </div>
         <div className="text-[9px] text-text-tertiary uppercase tracking-widest font-medium mt-0.5">
-          Alerts
+          {t("stats.today")}
         </div>
       </div>
 
-      {/* Regions Hit */}
       <div className="flex-1 bg-bg-surface border border-border rounded-xl p-3 text-center">
         <div className="font-mono text-[22px] font-bold tracking-tight text-accent-amber">
           {regionCount}
         </div>
         <div className="text-[9px] text-text-tertiary uppercase tracking-widest font-medium mt-0.5">
-          Regions
+          {t("stats.regions")}
         </div>
       </div>
 
-      {/* Last Alert */}
       <div className="flex-1 bg-bg-surface border border-border rounded-xl p-3 text-center">
         <div className="font-mono text-[22px] font-bold tracking-tight text-accent-green">
           {formatMinutes(lastAlertMinutes)}
         </div>
         <div className="text-[9px] text-text-tertiary uppercase tracking-widest font-medium mt-0.5">
-          Last Alert
+          {t("stats.lastAlert")}
         </div>
       </div>
     </div>
