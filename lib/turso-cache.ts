@@ -1,36 +1,47 @@
-import { createClient, type Client, type ResultSet } from "@libsql/client/web";
+"use client";
 
-let client: Client | null = null;
+// Client-side data layer that fetches from our API routes instead of Turso directly.
+// This avoids browser URL/token issues and keeps credentials server-side.
 
-function getClient(): Client {
-  if (!client) {
-    // The web client requires https:// not libsql://
-    const rawUrl = process.env.NEXT_PUBLIC_TURSO_DB_URL!;
-    const url = rawUrl.replace(/^libsql:\/\//, "https://");
-    client = createClient({
-      url,
-      authToken: process.env.NEXT_PUBLIC_TURSO_READ_TOKEN!,
-    });
-  }
-  return client;
+interface CacheEntry {
+  data: unknown;
+  fetchedAt: number;
 }
 
-const cache = new Map<string, { data: ResultSet; fetchedAt: number }>();
+const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 60_000; // 60 seconds
 
-export async function cachedQuery(sql: string, args: unknown[] = []): Promise<ResultSet> {
-  const cacheKey = `${sql}|${JSON.stringify(args)}`;
-  const cached = cache.get(cacheKey);
-
+async function fetchFromApi(endpoint: string): Promise<unknown> {
+  const cached = cache.get(endpoint);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
     return cached.data;
   }
 
-  const result = await getClient().execute({ sql, args: args as any });
-  cache.set(cacheKey, { data: result, fetchedAt: Date.now() });
-  return result;
+  const res = await fetch(endpoint);
+  if (!res.ok) {
+    throw new Error(`API ${endpoint} returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  cache.set(endpoint, { data, fetchedAt: Date.now() });
+  return data;
 }
 
-export async function directQuery(sql: string, args: unknown[] = []): Promise<ResultSet> {
-  return getClient().execute({ sql, args: args as any });
+export async function queryAnalytics(key: string): Promise<unknown> {
+  return fetchFromApi(`/api/analytics?key=${encodeURIComponent(key)}`);
+}
+
+export async function queryAlerts(params: string): Promise<unknown> {
+  return fetchFromApi(`/api/alerts?${params}`);
+}
+
+export async function queryAlertsFeed(params: string): Promise<unknown> {
+  // Feed queries are not cached (each page is unique)
+  const res = await fetch(`/api/alerts?${params}`);
+  if (!res.ok) throw new Error(`API returned ${res.status}`);
+  return res.json();
+}
+
+export async function queryCityCoords(): Promise<unknown> {
+  return fetchFromApi("/api/cities");
 }
