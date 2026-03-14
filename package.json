@@ -11,7 +11,8 @@
     "cities:extract": "tsx scripts/extract-cities.ts",
     "cities:seed": "tsx scripts/seed-cities.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ingest": "tsx scripts/ingest/index.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
