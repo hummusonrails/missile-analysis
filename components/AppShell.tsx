@@ -1,15 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { TabBar } from "./TabBar";
 import { FilterChips } from "./FilterChips";
+import { MapStats } from "./map/MapStats";
+import { BottomSheet } from "./map/BottomSheet";
 import { useFilterState } from "../lib/hooks/use-filter-state";
+import { useAlerts } from "../lib/hooks/use-alerts";
+import { useCityCoords } from "../lib/hooks/use-city-coords";
+import type { Alert } from "../lib/types";
 
 type Tab = "map" | "analytics" | "feed";
 
+// Dynamically import AlertMap with SSR disabled — Leaflet requires browser APIs
+const AlertMap = dynamic(() => import("./map/AlertMap"), { ssr: false });
+
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>("map");
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
+  const { alerts } = useAlerts(filter);
+  const { coords: cityCoords } = useCityCoords();
+
+  // Compute stats
+  const { alertCount, regionCount, lastAlertMinutes } = useMemo(() => {
+    const count = alerts.length;
+
+    // Unique regions from all cities across all alerts
+    const regions = new Set<string>();
+    for (const alert of alerts) {
+      for (const city of alert.cities) {
+        const coord = cityCoords.get(city);
+        if (coord?.region_id) regions.add(coord.region_id);
+      }
+    }
+
+    // Minutes since the most recent alert
+    let minutes: number | null = null;
+    if (alerts.length > 0) {
+      const latestTs = alerts[0].timestamp; // already sorted DESC
+      minutes = Math.floor((Date.now() - latestTs) / 60_000);
+    }
+
+    return { alertCount: count, regionCount: regions.size, lastAlertMinutes: minutes };
+  }, [alerts, cityCoords]);
+
+  function handleShowInFeed() {
+    setSelectedAlert(null);
+    setActiveTab("feed");
+  }
 
   return (
     <div className="h-dvh flex flex-col bg-bg-primary">
@@ -35,15 +76,41 @@ export function AppShell() {
       {/* Content area */}
       <main className="flex-1 overflow-hidden">
         {activeTab === "map" && (
-          <div className="h-full flex items-center justify-center text-text-tertiary">
-            Map View (Task 9)
+          <div className="h-full flex flex-col">
+            {/* Stats strip */}
+            <MapStats
+              alertCount={alertCount}
+              regionCount={regionCount}
+              lastAlertMinutes={lastAlertMinutes}
+            />
+
+            {/* Map container */}
+            <div className="flex-1 relative overflow-hidden">
+              <AlertMap
+                alerts={alerts}
+                cityCoords={cityCoords}
+                onAlertSelect={setSelectedAlert}
+              />
+
+              {/* Bottom sheet */}
+              {selectedAlert && (
+                <BottomSheet
+                  alert={selectedAlert}
+                  cityCoords={cityCoords}
+                  onClose={() => setSelectedAlert(null)}
+                  onShowInFeed={handleShowInFeed}
+                />
+              )}
+            </div>
           </div>
         )}
+
         {activeTab === "analytics" && (
           <div className="h-full flex items-center justify-center text-text-tertiary">
             Analytics View (Task 10)
           </div>
         )}
+
         {activeTab === "feed" && (
           <div className="h-full flex items-center justify-center text-text-tertiary">
             Feed View (Task 11)
