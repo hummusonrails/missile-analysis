@@ -28,14 +28,21 @@ export function AppShell() {
   const { t } = useI18n();
 
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
-  const { alerts } = useAlerts(filter);
+  const { alerts: allAlerts } = useAlerts(filter);
   const { coords: cityCoords } = useCityCoords();
 
-  // Compute stats
+  // Filter alerts by region (client-side since cities are stored as JSON)
+  const alerts = useMemo(() => {
+    if (!filter.regionId) return allAlerts;
+    return allAlerts.filter((alert) =>
+      alert.cities.some((city) => cityCoords.get(city)?.region_id === filter.regionId)
+    );
+  }, [allAlerts, filter.regionId, cityCoords]);
+
+  // Compute stats from filtered alerts
   const { alertCount, regionCount, lastAlertMinutes } = useMemo(() => {
     const count = alerts.length;
 
-    // Unique regions from all cities across all alerts
     const regions = new Set<string>();
     for (const alert of alerts) {
       for (const city of alert.cities) {
@@ -44,10 +51,9 @@ export function AppShell() {
       }
     }
 
-    // Minutes since the most recent alert
     let minutes: number | null = null;
     if (alerts.length > 0) {
-      const latestTs = alerts[0].timestamp; // already sorted DESC
+      const latestTs = alerts[0].timestamp;
       minutes = Math.floor((Date.now() - latestTs) / 60_000);
     }
 
