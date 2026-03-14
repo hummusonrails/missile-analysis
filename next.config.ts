@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com",
-              "connect-src 'self' https://*.turso.io https://gc.zgo.at https://api.tzevaadom.co.il https://*.basemaps.cartocdn.com",
+              "connect-src 'self' https://*.turso.io https://gc.zgo.at https://*.goatcounter.com https://api.tzevaadom.co.il https://*.basemaps.cartocdn.com",
               "frame-src 'none'",
             ].join("; "),
           },
