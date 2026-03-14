@@ -9,8 +9,8 @@ export function createServerClient() {
     throw new Error(`Missing Turso env vars: url=${url ? "set" : "MISSING"}, token=${authToken ? "set" : "MISSING"}`);
   }
 
-  // @libsql/client/http expects https:// not libsql://
-  const httpUrl = url.replace(/^libsql:\/\//, "https://");
+  // Trim whitespace/newlines that env vars may include, convert libsql:// to https://
+  const httpUrl = url.trim().replace(/^libsql:\/\//, "https://");
 
-  return createClient({ url: httpUrl, authToken });
+  return createClient({ url: httpUrl, authToken: authToken.trim() });
 }
