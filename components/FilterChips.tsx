@@ -137,7 +137,7 @@ export function FilterChips({
             </button>
 
             {showRegionPicker && (
-              <div className="absolute top-full left-0 mt-1 z-50 bg-bg-elevated border border-border-active rounded-xl shadow-2xl overflow-hidden min-w-[200px] max-h-[300px] overflow-y-auto">
+              <div className="fixed inset-x-0 top-auto mt-1 mx-4 z-[9999] bg-bg-elevated border border-border-active rounded-xl shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto" style={{ top: (regionRef.current?.getBoundingClientRect().bottom ?? 0) + 4 }}>
                 <button
                   onClick={() => { onRegionChange(null); setShowRegionPicker(false); }}
                   className={`w-full text-left px-3.5 py-2.5 text-[12px] transition-colors ${
