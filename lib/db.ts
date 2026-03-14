@@ -1,17 +1,14 @@
 import { createClient } from "@libsql/client";
 
-// Server-side client (read-write, used by ingestion)
-export function createServerClient() {
-  return createClient({
-    url: process.env.TURSO_DB_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN!,
-  });
+function resolveUrl(url: string): string {
+  // Turso's libsql:// scheme needs to be converted to https:// for HTTP transport
+  return url.replace(/^libsql:\/\//, "https://");
 }
 
-// Client-side client (read-only, used by browser)
-export function createBrowserClient() {
+// Server-side client (read-write, used by API routes and ingestion)
+export function createServerClient() {
   return createClient({
-    url: process.env.NEXT_PUBLIC_TURSO_DB_URL!,
-    authToken: process.env.NEXT_PUBLIC_TURSO_READ_TOKEN!,
+    url: resolveUrl(process.env.TURSO_DB_URL!),
+    authToken: process.env.TURSO_AUTH_TOKEN!,
   });
 }
