@@ -27,29 +27,36 @@ function buildParams(filter: FilterState): URLSearchParams {
   return params;
 }
 
+const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes — matches ingestion cron
+
 export function useAlerts(filter: FilterState) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
-    const params = buildParams(filter);
-    params.set("limit", "5000");
+    function fetchAlerts() {
+      setLoading(true);
+      const params = buildParams(filter);
+      params.set("limit", "5000");
 
-    queryAlerts(params.toString())
-      .then((result) => {
-        if (cancelled) return;
-        setAlerts(result as Alert[]);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
+      queryAlerts(params.toString())
+        .then((result) => {
+          if (cancelled) return;
+          setAlerts(result as Alert[]);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setLoading(false);
+        });
+    }
 
-    return () => { cancelled = true; };
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, REFRESH_INTERVAL);
+
+    return () => { cancelled = true; clearInterval(interval); };
   }, [filter.timeRange, filter.customStart, filter.customEnd, filter.regionId]);
 
   return { alerts, loading };
