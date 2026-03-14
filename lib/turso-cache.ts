@@ -4,8 +4,11 @@ let client: Client | null = null;
 
 function getClient(): Client {
   if (!client) {
+    // The web client requires https:// not libsql://
+    const rawUrl = process.env.NEXT_PUBLIC_TURSO_DB_URL!;
+    const url = rawUrl.replace(/^libsql:\/\//, "https://");
     client = createClient({
-      url: process.env.NEXT_PUBLIC_TURSO_DB_URL!,
+      url,
       authToken: process.env.NEXT_PUBLIC_TURSO_READ_TOKEN!,
     });
   }
