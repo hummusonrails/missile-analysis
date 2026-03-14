@@ -50,17 +50,66 @@ The app is architecturally optimized for Vercel's free tier by pre-computing ana
 
 3. **Protection (Cloudflare):** DNS-proxied for bot protection, DDoS mitigation, and CDN caching. Same setup as best-shower-time. The ingest webhook authenticates via a shared secret header, not IP-based filtering.
 
+### Ingestion Error Handling
+
+The GitHub Actions cron job handles failures as follows:
+
+- **API unreachable / timeout:** Log the error, skip the run. The existing data in Turso remains valid. After 3 consecutive failures, the workflow updates a `system_status` key in `analytics_cache` with `{ status: "stale", last_success: <timestamp>, consecutive_failures: N }`. The client checks this key and shows a "Data may be stale" indicator if `consecutive_failures > 0`.
+- **Malformed response:** Validate the response shape before processing. If the response is not a JSON array or alerts lack required fields (`time`, `cities`), skip the run and log.
+- **Empty response:** Valid — the API may return an empty array during quiet periods. No alerts are inserted, analytics are re-computed (which may shift averages).
+- **Partial failures:** Alert insertion and analytics computation are separate steps. If insertion succeeds but analytics computation fails, the raw data is still stored. Analytics will be recomputed on the next successful run.
+
+### Client-Side Data Fetching
+
+The client uses a `TursoCache` wrapper around `@libsql/client` that:
+
+1. Holds an in-memory `Map<string, { data: any, fetchedAt: number }>` cache
+2. Before each query, checks if a cached result exists and is less than 60 seconds old
+3. If cache hit: returns cached data immediately (no Turso read)
+4. If cache miss: executes the Turso query, stores the result, returns it
+5. Cache is per-session (cleared on page refresh) — no localStorage persistence needed
+
+This reduces Turso reads by ~80% for users navigating between tabs, since the same analytics keys are re-requested frequently.
+
+The read-only Turso auth token is embedded in the client bundle as an environment variable (`NEXT_PUBLIC_TURSO_READ_TOKEN`). It permits only SELECT on `alerts`, `analytics_cache`, and `city_coords`. To rotate: update the Turso token, set the new value in Vercel env vars, and redeploy.
+
+## Upstream API
+
+The data source is `api.tzevaadom.co.il/alerts-history`, which returns an array of alert groups:
+
+```json
+[
+  {
+    "id": 12345,
+    "alerts": [
+      {
+        "time": 1710000000,
+        "cities": ["אשקלון", "שדרות"],
+        "threat": 2,
+        "isDrill": false
+      }
+    ]
+  }
+]
+```
+
+- `id`: Group identifier (integer) — represents a single alert event that may cover multiple cities
+- `alerts[].time`: Unix timestamp in **seconds** (converted to milliseconds during ingestion)
+- `alerts[].cities`: Array of Hebrew city names
+- `alerts[].threat`: Integer threat level. Values observed: 0 (unknown), 1 (low — rockets from short range), 2 (medium — rockets from medium range), 3 (high — heavy rocket barrage or ballistic missiles). The upstream API does not document these formally; values are mapped to UI severity as: 0-1 → gray/quiet, 2 → amber/warning, 3 → red/critical.
+- `alerts[].isDrill`: Boolean — drills are filtered out during ingestion
+
 ## Data Model
 
 ### `alerts` table
 
 | Column | Type | Description |
 |--------|------|-------------|
-| id | TEXT PK | `"{group_id}_{timestamp}"` |
-| timestamp | INTEGER NOT NULL | Unix milliseconds |
+| id | TEXT PK | `"{group_id}_{timestamp}"` where `group_id` is the upstream `id` field |
+| timestamp | INTEGER NOT NULL | Unix milliseconds (converted from upstream seconds) |
 | cities | TEXT NOT NULL | JSON array of Hebrew city names |
-| threat | INTEGER DEFAULT 0 | Threat level |
-| is_drill | BOOLEAN DEFAULT FALSE | Whether alert is a drill |
+| threat | INTEGER DEFAULT 0 | Threat level (0=unknown, 1=low, 2=medium, 3=high) |
+| is_drill | BOOLEAN DEFAULT FALSE | Whether alert is a drill (always false — drills filtered on ingest) |
 | created_at | INTEGER NOT NULL | Ingestion timestamp |
 
 Indexes: `idx_timestamp (timestamp)`, `idx_threat (threat)`
@@ -82,9 +131,19 @@ Indexes: `idx_timestamp (timestamp)`, `idx_threat (threat)`
 | city_name_en | TEXT | English name |
 | lat | REAL NOT NULL | Latitude |
 | lng | REAL NOT NULL | Longitude |
-| region_id | TEXT | Links to best-time-ui region |
+| region_id | TEXT | Region ID from best-time-ui's `regions` export |
 
-Seeded via a one-time geocoding script using the ~800 city mappings from best-shower-time's `cityNames.ts`.
+Seeded via a one-time setup script (`scripts/seed-cities.ts`, run manually as a prerequisite before the app can function) that:
+1. Reads city name mappings from best-shower-time's `cityNames.ts` (~800 Hebrew/English pairs)
+2. Geocodes each city using a batch geocoding API (e.g., Nominatim)
+3. Assigns `region_id` using best-time-ui's `detectRegionFromCoordinates(lat, lng)` function
+4. Inserts all rows into Turso
+
+**Unknown cities:** When the upstream API returns a city name not found in `city_coords`, the alert is still stored in the `alerts` table (data is never dropped). For map display, alerts with unknown cities are excluded from the map but appear in the Alert Feed. During ingestion, unknown city names are logged. A periodic review of the logs allows manually adding new cities to the seed data and re-running the script.
+
+### Region definitions
+
+Regions are defined in the `best-time-ui` package, exported from `src/lib/regions.ts`. The 15 regions are: `western-galilee`, `upper-galilee`, `lower-galilee`, `haifa-krayot`, `jezreel-valley`, `golan-heights`, `sharon`, `tel-aviv-gush-dan`, `central`, `jerusalem`, `shfela`, `ashkelon-coast`, `negev`, `gaza-envelope`, `eilat-arava`. Each region has `nameEn`, `nameHe`, `patterns[]` (city name patterns for matching), and `bounds` (lat/lng bounding box for map zoom).
 
 ### Analytics Cache Keys
 
@@ -99,13 +158,13 @@ Each key is computed during every ingestion run:
 | `monthly_trends` | Alerts per month over time |
 | `regional_heatmap` | Alert counts per region |
 | `threat_distribution` | Counts by threat level over time |
-| `escalation_patterns` | Sequences where frequency > 2x baseline |
+| `escalation_patterns` | Sequences where hourly alert frequency exceeds 2x the 30-day rolling hourly average |
 | `quiet_vs_active` | Longest gaps and longest sustained periods |
-| `multi_city_correlation` | Alerts hitting 3+ regions simultaneously |
+| `multi_city_correlation` | Alerts where the same group_id contains cities in 3+ distinct regions (within a 5-minute window) |
 | `time_between_alerts` | Distribution histogram of gap durations |
-| `geographic_spread` | Avg regions per alert wave over time |
+| `geographic_spread` | Avg regions per alert group (group_id) over time |
 
-Per-region variants are stored as `regional_{region_id}` for each analytics type when filters are applied.
+**Per-region variants:** During ingestion, each analytics type above **except `regional_heatmap`** (which is inherently per-region) is also computed per-region and stored with a composite key: `{analytics_key}::{region_id}` (e.g., `hourly_histogram::gaza-envelope`). The `"all"` meta-region from best-time-ui is excluded — only the 15 geographic regions get per-region variants. This means 12 global + (11 × 15 regions) = 177 analytics cache entries per ingestion run. Additionally, a `system_status` key tracks ingestion health (see Ingestion Error Handling). When the user filters by region, the client fetches the region-specific key; otherwise it fetches the global key.
 
 ## UI Design
 
@@ -168,11 +227,11 @@ All three views share a single filter state (time range, region). Changing a fil
 - **Search:** Text input at top for filtering by city name or region
 - **Items:** Cards with left border colored by severity (red glow for critical, amber for warning, gray for older). Shows: relative timestamp, threat level badge, city list, region name, city count.
 - **Interaction:** Tapping a feed item switches to Map View and centers on that alert's location.
-- **Pagination:** Infinite scroll loading older alerts from Turso.
+- **Pagination:** Cursor-based infinite scroll (keyed on `timestamp` descending, page size of 50). Each page is a direct Turso SELECT query — not cached by `TursoCache` since each page is unique. Query: `SELECT * FROM alerts WHERE timestamp < :cursor ORDER BY timestamp DESC LIMIT 50`.
 
 ### Bilingual Support (EN/HE)
 
-- Uses best-time-ui's `LanguageProvider` and translation system
+- Uses best-time-ui's `I18nProvider`, `useLanguage`, and `useTranslation` exports
 - Language toggle in the Map View header
 - RTL layout support for Hebrew
 - City names displayed in the selected language (using cityNames.ts mappings)
