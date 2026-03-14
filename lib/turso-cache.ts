@@ -1,4 +1,4 @@
-import { createClient, type Client, type ResultSet } from "@libsql/client";
+import { createClient, type Client, type ResultSet } from "@libsql/client/web";
 
 let client: Client | null = null;
 
