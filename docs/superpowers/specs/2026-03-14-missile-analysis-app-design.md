@@ -58,6 +58,7 @@ The GitHub Actions cron job handles failures as follows:
 - **Malformed response:** Validate the response shape before processing. If the response is not a JSON array or alerts lack required fields (`time`, `cities`), skip the run and log.
 - **Empty response:** Valid — the API may return an empty array during quiet periods. No alerts are inserted, analytics are re-computed (which may shift averages).
 - **Partial failures:** Alert insertion and analytics computation are separate steps. If insertion succeeds but analytics computation fails, the raw data is still stored. Analytics will be recomputed on the next successful run.
+- **Concurrent runs:** The GitHub Actions workflow uses a `concurrency` group to prevent overlapping runs. If a new cron fires while the previous is still running, the new run is queued (not cancelled) to avoid data loss.
 
 ### Client-Side Data Fetching
 
@@ -109,7 +110,7 @@ The data source is `api.tzevaadom.co.il/alerts-history`, which returns an array 
 | timestamp | INTEGER NOT NULL | Unix milliseconds (converted from upstream seconds) |
 | cities | TEXT NOT NULL | JSON array of Hebrew city names |
 | threat | INTEGER DEFAULT 0 | Threat level (0=unknown, 1=low, 2=medium, 3=high) |
-| is_drill | BOOLEAN DEFAULT FALSE | Whether alert is a drill (always false — drills filtered on ingest) |
+| ~~is_drill~~ | *(dropped)* | Drills are filtered during ingestion — no need to store |
 | created_at | INTEGER NOT NULL | Ingestion timestamp |
 
 Indexes: `idx_timestamp (timestamp)`, `idx_threat (threat)`
@@ -224,7 +225,7 @@ All three views share a single filter state (time range, region). Changing a fil
 
 ### Alert Feed View
 
-- **Search:** Text input at top for filtering by city name or region
+- **Search:** Text input at top for filtering by city name or region. Search is bilingual — user input is matched against both `city_coords.city_name` (Hebrew) and `city_coords.city_name_en` (English), plus region names. Matching is done client-side against the loaded feed data using substring matching.
 - **Items:** Cards with left border colored by severity (red glow for critical, amber for warning, gray for older). Shows: relative timestamp, threat level badge, city list, region name, city count.
 - **Interaction:** Tapping a feed item switches to Map View and centers on that alert's location.
 - **Pagination:** Cursor-based infinite scroll (keyed on `timestamp` descending, page size of 50). Each page is a direct Turso SELECT query — not cached by `TursoCache` since each page is unique. Query: `SELECT * FROM alerts WHERE timestamp < :cursor ORDER BY timestamp DESC LIMIT 50`.
