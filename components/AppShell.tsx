@@ -10,6 +10,7 @@ import { useFilterState } from "../lib/hooks/use-filter-state";
 import { useAlerts } from "../lib/hooks/use-alerts";
 import { useCityCoords } from "../lib/hooks/use-city-coords";
 import type { Alert } from "../lib/types";
+import { AnalyticsView } from "./analytics/AnalyticsView";
 
 type Tab = "map" | "analytics" | "feed";
 
@@ -105,11 +106,7 @@ export function AppShell() {
           </div>
         )}
 
-        {activeTab === "analytics" && (
-          <div className="h-full flex items-center justify-center text-text-tertiary">
-            Analytics View (Task 10)
-          </div>
-        )}
+        {activeTab === "analytics" && <AnalyticsView regionId={filter.regionId} />}
 
         {activeTab === "feed" && (
           <div className="h-full flex items-center justify-center text-text-tertiary">
