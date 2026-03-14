@@ -14,6 +14,7 @@ import { AnalyticsView } from "./analytics/AnalyticsView";
 import { FeedView } from "./feed/FeedView";
 import { LanguageToggle } from "./LanguageToggle";
 import { StatusBanner } from "./StatusBanner";
+import { Footer } from "./Footer";
 import { useI18n } from "../lib/i18n";
 
 type Tab = "map" | "analytics" | "feed";

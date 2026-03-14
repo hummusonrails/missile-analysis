@@ -5,6 +5,7 @@ import { ANALYTICS_PANELS } from "../../lib/types";
 import type { Alert, CityCoord } from "../../lib/types";
 import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
 import { AnalyticsCard } from "./AnalyticsCard";
+import { Footer } from "../Footer";
 
 interface AnalyticsViewProps {
   alerts: Alert[];
@@ -248,6 +249,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
           </>
         )}
+        <Footer />
       </div>
     </div>
   );
