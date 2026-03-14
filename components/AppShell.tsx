@@ -40,15 +40,21 @@ export function AppShell() {
   }, [allAlerts, filter.regionId, cityCoords]);
 
   // Compute stats from filtered alerts
-  const { alertCount, regionCount, lastAlertMinutes } = useMemo(() => {
+  const { alertCount, regionCount, lastAlertMinutes, mappedCount } = useMemo(() => {
     const count = alerts.length;
 
     const regions = new Set<string>();
+    let mapped = 0;
     for (const alert of alerts) {
+      let alertMapped = false;
       for (const city of alert.cities) {
         const coord = cityCoords.get(city);
-        if (coord?.region_id) regions.add(coord.region_id);
+        if (coord?.region_id) {
+          regions.add(coord.region_id);
+          alertMapped = true;
+        }
       }
+      if (alertMapped) mapped++;
     }
 
     let minutes: number | null = null;
@@ -57,7 +63,7 @@ export function AppShell() {
       minutes = Math.floor((Date.now() - latestTs) / 60_000);
     }
 
-    return { alertCount: count, regionCount: regions.size, lastAlertMinutes: minutes };
+    return { alertCount: count, regionCount: regions.size, lastAlertMinutes: minutes, mappedCount: mapped };
   }, [alerts, cityCoords]);
 
   function handleShowInFeed() {
@@ -102,6 +108,7 @@ export function AppShell() {
             {/* Stats strip */}
             <MapStats
               alertCount={alertCount}
+              mappedCount={mappedCount}
               regionCount={regionCount}
               lastAlertMinutes={lastAlertMinutes}
               timeRange={filter.timeRange}
