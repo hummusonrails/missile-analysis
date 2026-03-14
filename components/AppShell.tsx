@@ -78,8 +78,11 @@ export function AppShell() {
       <FilterChips
         activeRange={filter.timeRange}
         onRangeChange={setTimeRange}
+        onCustomRange={setCustomRange}
         regionId={filter.regionId}
         onRegionChange={setRegion}
+        alertCount={alertCount}
+        loading={false}
       />
 
       {/* System status */}
@@ -117,7 +120,7 @@ export function AppShell() {
           </div>
         )}
 
-        {activeTab === "analytics" && <AnalyticsView regionId={filter.regionId} />}
+        {activeTab === "analytics" && <AnalyticsView alerts={alerts} cityCoords={cityCoords} regionId={filter.regionId} />}
 
         {activeTab === "feed" && (
           <FeedView filter={filter} onAlertTap={handleShowOnMap} />
