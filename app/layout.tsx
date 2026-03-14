@@ -40,6 +40,14 @@ export const metadata: Metadata = {
     title: "SirenWise — Israel Alert Intelligence",
     description:
       "Interactive missile alert map with real-time analytics, Shabbat vs weekday patterns, hourly trends, and regional breakdowns.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SirenWise — Israel Alert Intelligence",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
