@@ -26,16 +26,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Analytics API error:", err);
-    return NextResponse.json(
-      {
-        error: String(err),
-        stack: err instanceof Error ? err.stack?.split("\n").slice(0, 5) : undefined,
-        env_url_full: process.env.TURSO_DB_URL || "MISSING",
-        env_url_length: process.env.TURSO_DB_URL?.length,
-        env_url_charCodes: process.env.TURSO_DB_URL ? Array.from(process.env.TURSO_DB_URL.slice(-5)).map(c => c.charCodeAt(0)) : [],
-        env_token: process.env.TURSO_AUTH_TOKEN ? "set" : "MISSING",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
