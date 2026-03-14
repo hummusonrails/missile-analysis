@@ -5,7 +5,6 @@ import { ANALYTICS_PANELS } from "../../lib/types";
 import type { Alert, CityCoord } from "../../lib/types";
 import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
 import { AnalyticsCard } from "./AnalyticsCard";
-import { Footer } from "../Footer";
 
 interface AnalyticsViewProps {
   alerts: Alert[];
@@ -165,28 +164,39 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               </AnalyticsCard>
             )}
 
-            {activePanels.has("threat_distribution") && (
-              <AnalyticsCard title="Threat Levels" badge={{ label: `Most: L${analytics.threat_distribution.mostCommonLevel}`, direction: "neutral" }}>
-                <div className="px-4 py-3 space-y-2">
-                  {[0, 1, 2, 3].map((level) => {
-                    const count = analytics.threat_distribution.counts[level] || 0;
-                    const total = Object.values(analytics.threat_distribution.counts).reduce((a, b) => a + b, 0);
-                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                    const colors = ["bg-text-tertiary", "bg-accent-green", "bg-accent-amber", "bg-accent-red"];
-                    const labels = ["Unknown", "Low", "Medium", "High"];
-                    return (
-                      <div key={level} className="flex items-center gap-2">
-                        <span className="text-[10px] text-text-tertiary w-14">{labels[level]}</span>
-                        <div className="flex-1 h-3 bg-bg-elevated rounded-full overflow-hidden">
-                          <div className={`h-full ${colors[level]} rounded-full`} style={{ width: `${pct}%` }} />
+            {activePanels.has("threat_distribution") && (() => {
+              const threatTypes: { code: number; label: string; color: string }[] = [
+                { code: 0, label: "Rockets", color: "bg-accent-red" },
+                { code: 5, label: "Hostile Aircraft", color: "bg-accent-amber" },
+                { code: 2, label: "Infiltration", color: "bg-accent-blue" },
+                { code: 3, label: "Earthquake", color: "bg-accent-green" },
+                { code: 7, label: "Non-conv. Missile", color: "bg-purple-500" },
+                { code: 8, label: "General Alert", color: "bg-text-tertiary" },
+              ];
+              const total = Object.values(analytics.threat_distribution.counts).reduce((a: number, b: number) => a + b, 0);
+              const activeTypes = threatTypes.filter((t) => (analytics.threat_distribution.counts[t.code] || 0) > 0);
+              const topType = activeTypes.length > 0 ? activeTypes.reduce((max, t) => (analytics.threat_distribution.counts[t.code] || 0) > (analytics.threat_distribution.counts[max.code] || 0) ? t : max, activeTypes[0]) : null;
+
+              return (
+                <AnalyticsCard title="Alert Types" badge={topType ? { label: topType.label, direction: "neutral" } : undefined}>
+                  <div className="px-4 py-3 space-y-2">
+                    {activeTypes.map((t) => {
+                      const count = analytics.threat_distribution.counts[t.code] || 0;
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                      return (
+                        <div key={t.code} className="flex items-center gap-2">
+                          <span className="text-[10px] text-text-secondary w-24 truncate">{t.label}</span>
+                          <div className="flex-1 h-3 bg-bg-elevated rounded-full overflow-hidden">
+                            <div className={`h-full ${t.color} rounded-full`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] font-mono text-text-secondary w-16 text-right">{count} ({pct}%)</span>
                         </div>
-                        <span className="text-[10px] font-mono text-text-secondary w-10 text-right">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </AnalyticsCard>
-            )}
+                      );
+                    })}
+                  </div>
+                </AnalyticsCard>
+              );
+            })()}
 
             {activePanels.has("time_between_alerts") && (
               <AnalyticsCard title="Alert Gaps" badge={{ label: `${analytics.time_between_alerts.medianGapMinutes}m median`, direction: "neutral" }}>
@@ -285,7 +295,6 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
           </>
         )}
-        <Footer />
       </div>
     </div>
   );

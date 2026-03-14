@@ -6,7 +6,6 @@ import { useCityCoords } from "../../lib/hooks/use-city-coords";
 import { FeedSearch } from "./FeedSearch";
 import { FeedItem } from "./FeedItem";
 import type { Alert, FilterState } from "../../lib/types";
-import { Footer } from "../Footer";
 
 interface FeedViewProps {
   filter: FilterState;
@@ -136,7 +135,6 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
               )}
             </div>
           )}
-          <Footer />
         </div>
       </div>
     </div>

@@ -129,6 +129,9 @@ export function AppShell() {
         )}
       </main>
 
+      {/* Footer */}
+      <Footer />
+
       {/* Tab bar */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
     </div>

@@ -29,7 +29,7 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
     let eveningCount = 0;
     const dayCounts = new Array(7).fill(0);
     const monthCounts: Record<string, number> = {};
-    const threatCounts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const threatCounts: Record<number, number> = {};
     const regionCounts: Record<string, number> = {};
 
     // Per-alert: map group_id -> set of region_ids for multi-region analysis
