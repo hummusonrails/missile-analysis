@@ -1,5 +1,6 @@
 import { createClient } from "@libsql/client";
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 
 async function setupDatabase() {
   const db = createClient({
