@@ -12,6 +12,9 @@ import { useCityCoords } from "../lib/hooks/use-city-coords";
 import type { Alert } from "../lib/types";
 import { AnalyticsView } from "./analytics/AnalyticsView";
 import { FeedView } from "./feed/FeedView";
+import { LanguageToggle } from "./LanguageToggle";
+import { StatusBanner } from "./StatusBanner";
+import { useI18n } from "../lib/i18n";
 
 type Tab = "map" | "analytics" | "feed";
 
@@ -21,6 +24,7 @@ const AlertMap = dynamic(() => import("./map/AlertMap"), { ssr: false });
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>("map");
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const { t } = useI18n();
 
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
   const { alerts } = useAlerts(filter);
@@ -65,11 +69,9 @@ export function AppShell() {
       <header className="flex items-center justify-between px-5 py-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 bg-accent-red rounded-full shadow-[0_0_8px_theme(colors.accent-red/40)] animate-pulse" />
-          <h1 className="font-serif text-[17px] tracking-tight text-text-primary">Alert Map</h1>
+          <h1 className="font-serif text-[17px] tracking-tight text-text-primary">{t("app.title")}</h1>
         </div>
-        <button className="text-[11px] text-text-tertiary font-medium px-2 py-1 rounded-md border border-border">
-          EN · עב
-        </button>
+        <LanguageToggle />
       </header>
 
       {/* Filters */}
@@ -79,6 +81,9 @@ export function AppShell() {
         regionId={filter.regionId}
         onRegionChange={setRegion}
       />
+
+      {/* System status */}
+      <StatusBanner />
 
       {/* Content area */}
       <main className="flex-1 overflow-hidden">
