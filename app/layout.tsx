@@ -3,8 +3,8 @@ import "./globals.css";
 import { I18nProvider } from "../lib/i18n";
 
 export const metadata: Metadata = {
-  title: "Israel Alert Map",
-  description: "Interactive missile alert analysis and visualization",
+  title: "SirenWise — Israel Alert Intelligence",
+  description: "Interactive missile alert map, analytics, and historical data for Israel",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

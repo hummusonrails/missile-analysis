@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
+  url: process.env.TURSO_DB_URL!,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
@@ -63,7 +63,7 @@ async function geocodeCity(cityEn: string): Promise<{ lat: number; lng: number }
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "missile-analysis-seed/1.0 (bengreenberg@example.com)",
+        "User-Agent": "missile-analysis-geocoder/1.0 (https://github.com/hummusonrails/missile-analysis)",
       },
     });
 

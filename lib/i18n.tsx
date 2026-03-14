@@ -6,7 +6,7 @@ type Lang = "en" | "he";
 
 const translations: Record<Lang, Record<string, string>> = {
   en: {
-    "app.title": "Alert Map",
+    "app.title": "SirenWise",
     "tab.map": "Map",
     "tab.analytics": "Analytics",
     "tab.feed": "Feed",
