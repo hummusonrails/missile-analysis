@@ -4,7 +4,7 @@ import { createServerClient } from "../../../lib/db";
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const cursor = params.get("cursor");
-  const limit = Math.min(Number(params.get("limit") || "500"), 500);
+  const limit = Math.min(Number(params.get("limit") || "5000"), 5000);
   const since = params.get("since"); // timestamp in ms
 
   const db = createServerClient();

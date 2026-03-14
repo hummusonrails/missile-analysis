@@ -67,10 +67,11 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
     const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
     const quietestHour = hourCounts.indexOf(Math.min(...hourCounts));
 
-    // Shabbat multiplier
-    const shabbatRate = shabbatCount / 27;
-    const weekdayRate = weekdayCount > 0 ? weekdayCount / 141 : 0;
-    const shabbatMultiplier = weekdayRate > 0 ? Math.round((shabbatRate / weekdayRate) * 10) / 10 : 0;
+    // Shabbat: compare average alerts per Shabbat day vs average alerts per weekday
+    // Shabbat = Fri evening + Saturday ≈ 2 days/week, Weekdays = 5 days/week
+    const shabbatDailyAvg = shabbatCount / 2;
+    const weekdayDailyAvg = weekdayCount > 0 ? weekdayCount / 5 : 0;
+    const shabbatMultiplier = weekdayDailyAvg > 0 ? Math.round((shabbatDailyAvg / weekdayDailyAvg) * 10) / 10 : 0;
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const busiestDayIdx = dayCounts.indexOf(Math.max(...dayCounts));

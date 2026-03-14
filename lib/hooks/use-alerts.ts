@@ -36,7 +36,7 @@ export function useAlerts(filter: FilterState) {
     setLoading(true);
 
     const params = buildParams(filter);
-    params.set("limit", "500");
+    params.set("limit", "5000");
 
     queryAlerts(params.toString())
       .then((result) => {
