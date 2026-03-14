@@ -140,16 +140,17 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
 
             {activePanels.has("day_of_week") && (
-              <AnalyticsCard title="Day of Week" badge={{ label: `Busiest: ${analytics.day_of_week.busiestDay}`, direction: "neutral" }}>
+              <AnalyticsCard title="Avg Alerts Per Day of Week" badge={{ label: `Busiest: ${analytics.day_of_week.busiestDay}`, direction: "neutral" }}>
                 <div className="px-4 py-3">
                   <div className="flex items-end gap-1 h-16">
-                    {analytics.day_of_week.days.map((d) => {
-                      const max = Math.max(...analytics.day_of_week.days.map((x) => x.count), 1);
+                    {analytics.day_of_week.days.map((d: { day: number; name: string; count: number }) => {
+                      const max = Math.max(...analytics.day_of_week.days.map((x: { count: number }) => x.count), 1);
                       const height = Math.max(3, (d.count / max) * 100);
                       const isBusiest = d.name === analytics.day_of_week.busiestDay;
                       const isShabbat = d.day === 5 || d.day === 6;
                       return (
                         <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+                          <span className="text-[8px] font-mono text-text-tertiary">{d.count}</span>
                           <div
                             className={`w-full rounded-t-sm ${isBusiest ? "bg-accent-red" : isShabbat ? "bg-accent-amber" : "bg-accent-blue/60"}`}
                             style={{ height: `${height}%` }}
@@ -159,6 +160,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                       );
                     })}
                   </div>
+                  <div className="text-[9px] text-text-tertiary text-center mt-2 font-mono">normalized by number of each weekday in range</div>
                 </div>
               </AnalyticsCard>
             )}
@@ -198,24 +200,32 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
 
             {activePanels.has("quiet_vs_active") && (
-              <AnalyticsCard title="Quiet Periods" badge={{ label: `${analytics.quiet_vs_active.longestQuietHours}h longest`, direction: "down" }}>
-                <div className="px-4 py-3">
-                  <div className="font-mono text-3xl font-bold text-accent-green tracking-tight text-center mb-2">
-                    {analytics.quiet_vs_active.longestQuietHours}h
+              <AnalyticsCard title="Quiet & Active Periods">
+                <div className="flex gap-2 px-4 py-3">
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Longest quiet</div>
+                    <div className="font-mono text-2xl font-bold text-accent-green tracking-tight">{analytics.quiet_vs_active.longestQuietHours}h</div>
                   </div>
-                  <div className="text-[10px] text-text-tertiary text-center">longest quiet period</div>
+                  <div className="w-px bg-border my-1" />
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Longest active</div>
+                    <div className="font-mono text-2xl font-bold text-accent-red tracking-tight">{analytics.quiet_vs_active.longestActiveHours}h</div>
+                  </div>
+                </div>
+                <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                  Quiet = no alerts. Active = consecutive alerts within 30 min of each other.
                 </div>
               </AnalyticsCard>
             )}
 
             {activePanels.has("monthly_trends") && (
-              <AnalyticsCard title="Monthly Trends">
+              <AnalyticsCard title="Monthly Trends" badge={analytics.monthly_trends.monthOverMonthDelta !== 0 ? { label: `${analytics.monthly_trends.monthOverMonthDelta > 0 ? "+" : ""}${analytics.monthly_trends.monthOverMonthDelta}%`, direction: analytics.monthly_trends.monthOverMonthDelta > 0 ? "up" : "down" } : undefined}>
                 <div className="px-4 py-3 space-y-1.5">
-                  {analytics.monthly_trends.months.map((m) => (
+                  {analytics.monthly_trends.months.map((m: { month: string; count: number }) => (
                     <div key={m.month} className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-text-tertiary w-16">{m.month}</span>
                       <div className="flex-1 h-3 bg-bg-elevated rounded-full overflow-hidden">
-                        <div className="h-full bg-accent-blue/60 rounded-full" style={{ width: `${Math.min(100, (m.count / Math.max(...analytics.monthly_trends.months.map((x) => x.count), 1)) * 100)}%` }} />
+                        <div className="h-full bg-accent-blue/60 rounded-full" style={{ width: `${Math.min(100, (m.count / Math.max(...analytics.monthly_trends.months.map((x: { count: number }) => x.count), 1)) * 100)}%` }} />
                       </div>
                       <span className="text-[10px] font-mono text-text-secondary w-10 text-right">{m.count}</span>
                     </div>
@@ -225,25 +235,51 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
 
             {activePanels.has("escalation_patterns") && (
-              <AnalyticsCard title="Escalation">
-                <div className="px-4 py-3 text-center">
-                  <div className="text-[12px] text-text-secondary">Based on {analytics.totalAlerts} alerts in selected range</div>
+              <AnalyticsCard title="Current Escalation" badge={{ label: analytics.escalation_patterns.multiplier > 2 ? "↑ elevated" : "normal", direction: analytics.escalation_patterns.multiplier > 2 ? "up" : "neutral" }}>
+                <div className="flex gap-2 px-4 py-3">
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Last hour</div>
+                    <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.escalation_patterns.currentRate}</div>
+                  </div>
+                  <div className="w-px bg-border my-1" />
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">7-day avg/hr</div>
+                    <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{analytics.escalation_patterns.baseline}</div>
+                  </div>
+                </div>
+                <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                  Current rate is <strong className="text-accent-blue font-semibold">{analytics.escalation_patterns.multiplier}x</strong> the 7-day hourly average.
                 </div>
               </AnalyticsCard>
             )}
 
             {activePanels.has("multi_city_correlation") && (
-              <AnalyticsCard title="Multi-Region">
-                <div className="px-4 py-3 text-center">
-                  <div className="text-[12px] text-text-secondary">Based on {analytics.totalAlerts} alerts in selected range</div>
+              <AnalyticsCard title="Multi-Region Events" badge={{ label: `${analytics.multi_city_correlation.multiRegionCount} events`, direction: "neutral" }}>
+                <div className="flex gap-2 px-4 py-3">
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">3+ region events</div>
+                    <div className="font-mono text-2xl font-bold text-accent-red tracking-tight">{analytics.multi_city_correlation.multiRegionCount}</div>
+                  </div>
+                  <div className="w-px bg-border my-1" />
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg regions/event</div>
+                    <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.multi_city_correlation.avgRegions}</div>
+                  </div>
+                </div>
+                <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                  Out of {analytics.multi_city_correlation.totalGroups} total alert groups, {analytics.multi_city_correlation.multiRegionCount} hit 3 or more regions simultaneously.
                 </div>
               </AnalyticsCard>
             )}
 
             {activePanels.has("geographic_spread") && (
-              <AnalyticsCard title="Geo Spread">
+              <AnalyticsCard title="Geographic Spread" badge={{ label: `${analytics.geographic_spread.avgRegionsPerGroup} avg`, direction: "neutral" }}>
                 <div className="px-4 py-3 text-center">
-                  <div className="text-[12px] text-text-secondary">Based on {analytics.totalAlerts} alerts in selected range</div>
+                  <div className="font-mono text-3xl font-bold text-accent-blue tracking-tight mb-1">
+                    {analytics.geographic_spread.avgRegionsPerGroup}
+                  </div>
+                  <div className="text-[10px] text-text-tertiary">avg regions per alert group</div>
+                  <div className="text-[10px] text-text-tertiary mt-1">{analytics.geographic_spread.totalGroups} total alert groups</div>
                 </div>
               </AnalyticsCard>
             )}
