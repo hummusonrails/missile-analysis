@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "db:setup": "tsx scripts/setup-db.ts",
+    "cities:extract": "tsx scripts/extract-cities.ts",
+    "cities:seed": "tsx scripts/seed-cities.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
