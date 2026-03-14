@@ -1,11 +1,13 @@
 "use client";
 
 import { useI18n } from "../../lib/i18n";
+import type { TimeRange } from "../../lib/types";
 
 interface MapStatsProps {
   alertCount: number;
   regionCount: number;
   lastAlertMinutes: number | null;
+  timeRange: TimeRange;
 }
 
 function formatMinutes(minutes: number | null): string {
@@ -16,8 +18,16 @@ function formatMinutes(minutes: number | null): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export function MapStats({ alertCount, regionCount, lastAlertMinutes }: MapStatsProps) {
-  const { t } = useI18n();
+const RANGE_LABELS: Record<TimeRange, { en: string; he: string }> = {
+  "24h": { en: "Today", he: "היום" },
+  "7d": { en: "7 Days", he: "7 ימים" },
+  "30d": { en: "30 Days", he: "30 ימים" },
+  "custom": { en: "Range", he: "טווח" },
+};
+
+export function MapStats({ alertCount, regionCount, lastAlertMinutes, timeRange }: MapStatsProps) {
+  const { t, lang } = useI18n();
+  const rangeLabel = RANGE_LABELS[timeRange][lang];
 
   return (
     <div className="flex gap-2 px-3 pb-2 pt-1 flex-shrink-0">
@@ -26,7 +36,7 @@ export function MapStats({ alertCount, regionCount, lastAlertMinutes }: MapStats
           {alertCount.toLocaleString()}
         </div>
         <div className="text-[9px] text-text-tertiary uppercase tracking-widest font-medium mt-0.5">
-          {t("stats.today")}
+          {rangeLabel}
         </div>
       </div>
 

@@ -97,6 +97,7 @@ export function AppShell() {
               alertCount={alertCount}
               regionCount={regionCount}
               lastAlertMinutes={lastAlertMinutes}
+              timeRange={filter.timeRange}
             />
 
             {/* Map container */}
