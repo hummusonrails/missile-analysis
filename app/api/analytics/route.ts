@@ -27,7 +27,12 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("Analytics API error:", err);
     return NextResponse.json(
-      { error: String(err), env_url: process.env.TURSO_DB_URL ? "set" : "MISSING", env_token: process.env.TURSO_AUTH_TOKEN ? "set" : "MISSING" },
+      {
+        error: String(err),
+        stack: err instanceof Error ? err.stack?.split("\n").slice(0, 5) : undefined,
+        env_url_preview: process.env.TURSO_DB_URL?.substring(0, 30) || "MISSING",
+        env_token: process.env.TURSO_AUTH_TOKEN ? "set" : "MISSING",
+      },
       { status: 500 }
     );
   }
