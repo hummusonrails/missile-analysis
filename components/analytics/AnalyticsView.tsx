@@ -244,24 +244,41 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               </AnalyticsCard>
             )}
 
-            {activePanels.has("escalation_patterns") && (
-              <AnalyticsCard title="Current Escalation" badge={{ label: analytics.escalation_patterns.multiplier > 2 ? "↑ elevated" : "normal", direction: analytics.escalation_patterns.multiplier > 2 ? "up" : "neutral" }}>
-                <div className="flex gap-2 px-4 py-3">
-                  <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Last hour</div>
-                    <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.escalation_patterns.currentRate}</div>
+            {activePanels.has("escalation_patterns") && (() => {
+              const { currentRate, baseline, multiplier } = analytics.escalation_patterns;
+              const isElevated = multiplier > 2;
+              const isQuiet = currentRate === 0;
+              const badgeLabel = isQuiet ? "quiet" : isElevated ? "↑ elevated" : "normal";
+              const badgeDir = isQuiet ? "down" as const : isElevated ? "up" as const : "neutral" as const;
+
+              let insight: string;
+              if (isQuiet) {
+                insight = `No alerts in the last hour. The average over the selected period is ${baseline} alerts/hour.`;
+              } else if (isElevated) {
+                insight = `Alert rate is elevated — ${currentRate} alerts in the last hour vs an average of ${baseline}/hour (${multiplier}x higher).`;
+              } else {
+                insight = `${currentRate} alert${currentRate !== 1 ? "s" : ""} in the last hour, in line with the average of ${baseline}/hour.`;
+              }
+
+              return (
+                <AnalyticsCard title="Current Escalation" badge={{ label: badgeLabel, direction: badgeDir }}>
+                  <div className="flex gap-2 px-4 py-3">
+                    <div className="flex-1 text-center">
+                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Last hour</div>
+                      <div className={`font-mono text-2xl font-bold tracking-tight ${isQuiet ? "text-accent-green" : isElevated ? "text-accent-red" : "text-accent-amber"}`}>{currentRate}</div>
+                    </div>
+                    <div className="w-px bg-border my-1" />
+                    <div className="flex-1 text-center">
+                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg/hour</div>
+                      <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{baseline}</div>
+                    </div>
                   </div>
-                  <div className="w-px bg-border my-1" />
-                  <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">7-day avg/hr</div>
-                    <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{analytics.escalation_patterns.baseline}</div>
+                  <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                    {insight}
                   </div>
-                </div>
-                <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  Current rate is <strong className="text-accent-blue font-semibold">{analytics.escalation_patterns.multiplier}x</strong> the 7-day hourly average.
-                </div>
-              </AnalyticsCard>
-            )}
+                </AnalyticsCard>
+              );
+            })()}
 
             {activePanels.has("multi_city_correlation") && (
               <AnalyticsCard title="Multi-Region Events" badge={{ label: `${analytics.multi_city_correlation.multiRegionCount} events`, direction: "neutral" }}>
