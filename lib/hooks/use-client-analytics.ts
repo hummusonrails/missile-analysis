@@ -67,11 +67,29 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
     const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
     const quietestHour = hourCounts.indexOf(Math.min(...hourCounts));
 
-    // Shabbat: compare average alerts per Shabbat day vs average alerts per weekday
-    // Shabbat = Fri evening + Saturday ≈ 2 days/week, Weekdays = 5 days/week
-    const shabbatDailyAvg = shabbatCount / 2;
-    const weekdayDailyAvg = weekdayCount > 0 ? weekdayCount / 5 : 0;
-    const shabbatMultiplier = weekdayDailyAvg > 0 ? Math.round((shabbatDailyAvg / weekdayDailyAvg) * 10) / 10 : 0;
+    // Shabbat analysis: count actual Shabbatot and weekdays in the data range
+    // to get meaningful per-day averages
+    const oldest = Math.min(...alerts.map((a) => a.timestamp));
+    const newest = Math.max(...alerts.map((a) => a.timestamp));
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    // Count distinct Shabbatot and weekdays in range
+    const shabbatDays = new Set<string>();
+    const weekdayDays = new Set<string>();
+    for (let t = oldest; t <= newest; t += dayMs) {
+      const d = toIsraelDate(t);
+      const day = d.getDay();
+      const dateKey = d.toISOString().slice(0, 10);
+      // Friday or Saturday = Shabbat period
+      if (day === 5 || day === 6) shabbatDays.add(dateKey);
+      else weekdayDays.add(dateKey);
+    }
+
+    const numShabbatDays = Math.max(shabbatDays.size, 1);
+    const numWeekdays = Math.max(weekdayDays.size, 1);
+    const avgPerShabbatDay = Math.round(shabbatCount / numShabbatDays);
+    const avgPerWeekday = Math.round(weekdayCount / numWeekdays);
+    const shabbatMultiplier = avgPerWeekday > 0 ? Math.round((avgPerShabbatDay / avgPerWeekday) * 10) / 10 : 0;
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const busiestDayIdx = dayCounts.indexOf(Math.max(...dayCounts));
@@ -98,6 +116,8 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
       shabbat_vs_weekday: {
         shabbatCount,
         weekdayCount,
+        avgPerShabbatDay,
+        avgPerWeekday,
         multiplier: shabbatMultiplier,
         shabbatPercent: alerts.length > 0 ? Math.round((shabbatCount / alerts.length) * 100) : 0,
       },

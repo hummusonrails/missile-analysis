@@ -73,17 +73,21 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               <AnalyticsCard title="Shabbat vs Weekday" badge={{ label: `${analytics.shabbat_vs_weekday.multiplier}x`, direction: analytics.shabbat_vs_weekday.multiplier > 1 ? "up" : "down" }}>
                 <div className="flex gap-2 px-4 py-3">
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Shabbat</div>
-                    <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.shabbat_vs_weekday.shabbatCount}</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg per Shabbat day</div>
+                    <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.shabbat_vs_weekday.avgPerShabbatDay}</div>
                   </div>
                   <div className="w-px bg-border my-1" />
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Weekday</div>
-                    <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{analytics.shabbat_vs_weekday.weekdayCount}</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg per Weekday</div>
+                    <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{analytics.shabbat_vs_weekday.avgPerWeekday}</div>
                   </div>
                 </div>
+                <div className="px-4 pb-2 flex justify-between text-[10px] text-text-tertiary font-mono">
+                  <span>Total Shabbat: {analytics.shabbat_vs_weekday.shabbatCount}</span>
+                  <span>Total Weekday: {analytics.shabbat_vs_weekday.weekdayCount}</span>
+                </div>
                 <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  {analytics.shabbat_vs_weekday.shabbatPercent}% of alerts occur during Shabbat ({analytics.shabbat_vs_weekday.multiplier}x the weekday rate).
+                  On average, a Shabbat day sees <strong className="text-accent-amber font-semibold">{analytics.shabbat_vs_weekday.avgPerShabbatDay} alerts</strong> vs <strong className="text-accent-blue font-semibold">{analytics.shabbat_vs_weekday.avgPerWeekday}</strong> on a typical weekday ({analytics.shabbat_vs_weekday.multiplier}x).
                 </div>
               </AnalyticsCard>
             )}
