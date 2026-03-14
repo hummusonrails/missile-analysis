@@ -11,6 +11,7 @@ import { useAlerts } from "../lib/hooks/use-alerts";
 import { useCityCoords } from "../lib/hooks/use-city-coords";
 import type { Alert } from "../lib/types";
 import { AnalyticsView } from "./analytics/AnalyticsView";
+import { FeedView } from "./feed/FeedView";
 
 type Tab = "map" | "analytics" | "feed";
 
@@ -51,6 +52,11 @@ export function AppShell() {
   function handleShowInFeed() {
     setSelectedAlert(null);
     setActiveTab("feed");
+  }
+
+  function handleShowOnMap(alert: Alert) {
+    setSelectedAlert(alert);
+    setActiveTab("map");
   }
 
   return (
@@ -109,9 +115,7 @@ export function AppShell() {
         {activeTab === "analytics" && <AnalyticsView regionId={filter.regionId} />}
 
         {activeTab === "feed" && (
-          <div className="h-full flex items-center justify-center text-text-tertiary">
-            Feed View (Task 11)
-          </div>
+          <FeedView filter={filter} onAlertTap={handleShowOnMap} />
         )}
       </main>
 
