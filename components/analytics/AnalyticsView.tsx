@@ -118,25 +118,33 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                   </div>
                 </div>
                 <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  Peak hour is <strong className="text-accent-blue font-semibold">{analytics.hourly_histogram.peakHour}:00</strong>, quietest at {analytics.hourly_histogram.quietestHour}:00.
+                  Alerts are most frequent around <strong className="text-accent-amber font-semibold">{analytics.hourly_histogram.peakHour}:00</strong> Israel time. The quietest window is around {analytics.hourly_histogram.quietestHour}:00.
                 </div>
               </AnalyticsCard>
             )}
 
-            {activePanels.has("morning_vs_evening") && (
-              <AnalyticsCard title="Morning vs Evening" badge={{ label: `${analytics.morning_vs_evening.eveningPercent}% PM`, direction: analytics.morning_vs_evening.eveningPercent > 50 ? "up" : "down" }}>
-                <div className="px-4 py-3">
-                  <div className="flex gap-1 h-6 rounded-full overflow-hidden">
-                    <div className="bg-accent-blue/60 rounded-l-full" style={{ width: `${100 - analytics.morning_vs_evening.eveningPercent}%` }} />
-                    <div className="bg-accent-amber rounded-r-full" style={{ width: `${analytics.morning_vs_evening.eveningPercent}%` }} />
+            {activePanels.has("morning_vs_evening") && (() => {
+              const { morningCount, eveningCount, eveningPercent, peakHour, quietestHour } = analytics.morning_vs_evening;
+              const morningPercent = 100 - eveningPercent;
+              const dominant = eveningPercent > 50 ? "evening and nighttime" : "daytime";
+              return (
+                <AnalyticsCard title="Morning vs Evening" badge={{ label: `${eveningPercent}% evening`, direction: eveningPercent > 60 ? "up" : "neutral" }}>
+                  <div className="px-4 py-3">
+                    <div className="flex gap-1 h-6 rounded-full overflow-hidden">
+                      <div className="bg-accent-blue/60 rounded-l-full" style={{ width: `${morningPercent}%` }} />
+                      <div className="bg-accent-amber rounded-r-full" style={{ width: `${eveningPercent}%` }} />
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <span className="text-[10px] text-text-secondary">6:00–18:00: {morningCount} ({morningPercent}%)</span>
+                      <span className="text-[10px] text-text-secondary">18:00–6:00: {eveningCount} ({eveningPercent}%)</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-[10px] text-text-secondary">AM: {analytics.morning_vs_evening.morningCount}</span>
-                    <span className="text-[10px] text-text-secondary">PM: {analytics.morning_vs_evening.eveningCount}</span>
+                  <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                    Most alerts occur during {dominant} hours. The single most active hour is <strong className="text-accent-blue font-semibold">{peakHour}:00</strong>, while <strong className="text-accent-green font-semibold">{quietestHour}:00</strong> tends to be quietest.
                   </div>
-                </div>
-              </AnalyticsCard>
-            )}
+                </AnalyticsCard>
+              );
+            })()}
 
             {activePanels.has("day_of_week") && (
               <AnalyticsCard title="Avg Alerts Per Day of Week" badge={{ label: `Busiest: ${analytics.day_of_week.busiestDay}`, direction: "neutral" }}>
@@ -159,7 +167,9 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                       );
                     })}
                   </div>
-                  <div className="text-[9px] text-text-tertiary text-center mt-2 font-mono">normalized by number of each weekday in range</div>
+                  <div className="mx-0 mt-3 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                    <strong className="text-accent-blue font-semibold">{analytics.day_of_week.busiestDay}</strong> has the highest average alert count per day. Values are normalized — each bar shows the average for that weekday, accounting for how many of each appear in the selected range.
+                  </div>
                 </div>
               </AnalyticsCard>
             )}
@@ -194,20 +204,33 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                       );
                     })}
                   </div>
+                  {topType && (
+                    <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                      <strong className="text-accent-blue font-semibold">{topType.label}</strong> alerts account for {Math.round(((analytics.threat_distribution.counts[topType.code] || 0) / total) * 100)}% of all alerts in this period.
+                      {activeTypes.length > 1 && ` ${activeTypes.length} different alert types have been triggered.`}
+                    </div>
+                  )}
                 </AnalyticsCard>
               );
             })()}
 
-            {activePanels.has("time_between_alerts") && (
-              <AnalyticsCard title="Alert Gaps" badge={{ label: `${analytics.time_between_alerts.medianGapMinutes}m median`, direction: "neutral" }}>
-                <div className="px-4 py-3">
-                  <div className="font-mono text-3xl font-bold text-accent-blue tracking-tight text-center mb-2">
-                    {analytics.time_between_alerts.medianGapMinutes}m
+            {activePanels.has("time_between_alerts") && (() => {
+              const median = analytics.time_between_alerts.medianGapMinutes;
+              const formatted = median < 60 ? `${median} minutes` : `${Math.round(median / 60 * 10) / 10} hours`;
+              return (
+                <AnalyticsCard title="Time Between Alerts" badge={{ label: `${median}m median`, direction: "neutral" }}>
+                  <div className="px-4 py-3">
+                    <div className="font-mono text-3xl font-bold text-accent-blue tracking-tight text-center mb-2">
+                      {median < 60 ? `${median}m` : `${Math.round(median / 60 * 10) / 10}h`}
+                    </div>
+                    <div className="text-[10px] text-text-tertiary text-center">median time between consecutive alerts</div>
                   </div>
-                  <div className="text-[10px] text-text-tertiary text-center">median gap between alerts</div>
-                </div>
-              </AnalyticsCard>
-            )}
+                  <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                    Half of all alert gaps are shorter than <strong className="text-accent-blue font-semibold">{formatted}</strong>. This gives a sense of how relentless or spaced-out the alert pattern is.
+                  </div>
+                </AnalyticsCard>
+              );
+            })()}
 
             {activePanels.has("quiet_vs_active") && (
               <AnalyticsCard title="Quiet & Active Periods">
@@ -223,7 +246,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                   </div>
                 </div>
                 <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  Quiet = no alerts. Active = consecutive alerts within 30 min of each other.
+                  The longest stretch without any alerts was <strong className="text-accent-green font-semibold">{analytics.quiet_vs_active.longestQuietHours} hours</strong>. The longest sustained barrage (alerts within 30 min of each other) lasted <strong className="text-accent-red font-semibold">{analytics.quiet_vs_active.longestActiveHours} hours</strong>.
                 </div>
               </AnalyticsCard>
             )}
