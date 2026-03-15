@@ -29,14 +29,17 @@ All three engines implement a common interface:
 interface AIEngine {
   id: "chrome-ai" | "webllm" | "wllama";
   name: string;
-  status: "ready" | "needs-download" | "downloading" | "unavailable";
+  status: "ready" | "needs-download" | "downloading" | "error" | "unavailable";
   downloadSize?: string;
   downloadProgress?: number; // 0-100
+  error?: string; // Human-readable error message
   init(): Promise<void>;
-  prompt(system: string, user: string): AsyncIterable<string>;
+  prompt(system: string, user: string, signal?: AbortSignal): AsyncIterable<string>;
   destroy(): void;
 }
 ```
+
+**Error handling:** If `init()` fails (download interrupted, insufficient storage, WebGPU init failure), the engine sets `status: "error"` with a message. The UI shows a retry button. If `prompt()` fails mid-inference, the chat view shows "Something went wrong — try again" with the option to retry the same question. The `AbortSignal` parameter allows cancelling long-running inference (user navigates away or taps a cancel button).
 
 ### Chrome AI Engine
 
@@ -72,13 +75,16 @@ function buildSystemPrompt(analytics, filter, lang): string
 The system prompt includes:
 - Role description ("You are an analyst for SirenWise")
 - Current filter context (time range, region)
-- All 11 analytics summaries as key-value pairs (~800 tokens):
+- All 12 analytics sections from `useClientAnalytics` as key-value pairs (~800 tokens):
   - Total alerts, Shabbat multiplier + per-day averages
   - Peak/quietest hour, evening percentage
   - Busiest day, median event gap
   - Longest quiet/active periods
   - Escalation rate vs baseline
   - Multi-region event count, geographic spread
+  - Threat type distribution (rockets vs hostile aircraft etc.)
+  - Regional heatmap (alert counts per region)
+  - Monthly trend with month-over-month delta
 - Language instruction: "Answer in Hebrew" or "Answer in English" based on `lang`
 - Constraint: "Be concise, specific with numbers, do not invent data"
 
@@ -86,13 +92,17 @@ Total system prompt: ~800 tokens, leaving ample room for user question + respons
 
 ## UI Design
 
-### Tab Bar
+### Tab Bar Integration
 
-The "AI" tab appears as the 4th tab (after Feed) only when `useAIEngine` returns `available: true`.
+The `Tab` union type in `TabBar.tsx` is extended to `"map" | "analytics" | "feed" | "ai"`. The `tabIds` array and `tabKeys` record always include `"ai"`. However, `AppShell` conditionally renders the AI tab only when `useAIEngine` returns `available: true` — it passes an `aiAvailable` prop to `TabBar` which filters the `"ai"` entry from rendering when false.
 
 - **Label:** "AI" (no translation needed — universal)
-- **Icon:** `Sparkles` from `lucide-react`
+- **Icon:** `Sparkles` from `lucide-react` (other tab icons remain inline SVG for consistency, but `lucide-react` is added for the AI feature's broader icon needs)
 - Tab is completely hidden when no AI engine is available
+
+### Analytics Tab Cross-Reference
+
+`AnalyticsView` receives a new `onAskAI: (question: string) => void` prop from `AppShell`. When the user types in the `AIPromptBar` embedded at the top of the Analytics tab, it calls `onAskAI(question)` which triggers `AppShell` to switch to the AI tab and submit the question. This keeps the tab state management in `AppShell` where it belongs.
 
 ### AI Tab States
 
@@ -211,9 +221,10 @@ User changes filter (time range/region)
 
 - Does NOT process raw alert data (too large for client-side context windows)
 - Does NOT send data to any server or API
-- Does NOT work on mobile browsers (WebGPU/Chrome AI not available on mobile yet)
+- May work on mobile via Wllama (WASM SIMD is available on iOS 16.4+ and mobile Chrome) but performance will be slow (~2-5 tok/s on mobile CPUs). Chrome AI and WebLLM are not yet available on mobile. The feature is not optimized for mobile but is not explicitly blocked.
 - Does NOT replace the existing analytics cards (those remain always visible)
 - Does NOT persist conversations across sessions
+- Does NOT send prior conversation messages as context to subsequent prompts — each question is independent (same system context + new user question). The UI displays conversation history visually but the model only sees the current question.
 
 ## Not In Scope (YAGNI)
 
