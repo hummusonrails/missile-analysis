@@ -25,6 +25,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "sheet.showInFeed": "Show in Feed →",
     "sheet.close": "Close",
     "analytics.filtered": "Filtered",
+    "ai.input.placeholder": "Ask about alert patterns...",
+    "ai.powered": "Powered by on-device AI",
   },
   he: {
     "app.title": "מפת התרעות",
@@ -46,6 +48,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "sheet.showInFeed": "← הצג בעדכונים",
     "sheet.close": "סגור",
     "analytics.filtered": "מסונן",
+    "ai.input.placeholder": "שאלו על דפוסי התרעות...",
+    "ai.powered": "מופעל על ידי AI מקומי",
   },
 };
 
