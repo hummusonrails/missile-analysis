@@ -29,7 +29,8 @@ export function AppShell() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [pendingAIQuestion, setPendingAIQuestion] = useState<string | undefined>();
   const { t } = useI18n();
-  const { available: aiAvailable, clearMessages } = useAI();
+  const { engineStatus, clearMessages } = useAI();
+  const aiAvailable = engineStatus !== null && engineStatus !== "unavailable";
 
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
   const { alerts: allAlerts } = useAlerts(filter);
