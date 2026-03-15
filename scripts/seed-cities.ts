@@ -36,6 +36,7 @@ const regions: Region[] = [
   { id: "negev", lat: [30.5, 31.4], lng: [34.3, 35.4] },
   { id: "gaza-envelope", lat: [31.2, 31.5], lng: [34.2, 34.55] },
   { id: "eilat-arava", lat: [29.5, 30.5], lng: [34.8, 35.3] },
+  { id: "yehuda-vshomron", lat: [31.4, 32.55], lng: [34.95, 35.6] },
 ];
 
 function assignRegion(lat: number, lng: number): string {

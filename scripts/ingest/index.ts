@@ -9,7 +9,7 @@ const REGION_IDS = [
   "western-galilee", "upper-galilee", "lower-galilee", "haifa-krayot",
   "jezreel-valley", "golan-heights", "sharon", "tel-aviv-gush-dan",
   "central", "jerusalem", "shfela", "ashkelon-coast", "negev",
-  "gaza-envelope", "eilat-arava",
+  "gaza-envelope", "eilat-arava", "yehuda-vshomron",
 ];
 
 const BATCH_SIZE = 50;

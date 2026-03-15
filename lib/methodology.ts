@@ -83,16 +83,20 @@ export const METHODOLOGIES: Record<string, Methodology> = {
   },
 
   time_between_alerts: {
-    en: `**Methodology:** Alerts are sorted chronologically. The time gap (in minutes) between each consecutive pair of alerts is computed. The **median** of all gaps is reported as the central tendency measure.
+    en: `**Methodology:** Alerts are grouped by event ID (group_id from Pikud HaOref). Each group represents a single alert event that may trigger notifications in multiple cities simultaneously. The time gap between consecutive **events** (not individual alerts) is computed in minutes. The **median** of all event gaps is reported.
 
-**Why median, not mean:** The mean is heavily skewed by long quiet periods (e.g., a 12-hour overnight gap). The median better represents the "typical" gap a person would experience.
+**Why group by event:** Without grouping, a single alert event affecting 50 cities would create 49 zero-minute gaps, making the median artificially low. Grouping ensures we measure the time between distinct attack events.
 
-**Interpretation:** A low median (e.g., 3 minutes) indicates dense, rapid-fire alert activity. A high median (e.g., 2 hours) indicates more spaced-out alerts.`,
-    he: `**מתודולוגיה:** התרעות ממוינות כרונולוגית. פער הזמן (בדקות) בין כל זוג התרעות רצופות מחושב. **החציון** של כל הפערים מדווח כמדד הנטייה המרכזית.
+**Why median, not mean:** The mean is heavily skewed by long quiet periods (e.g., a 12-hour overnight gap). The median better represents the "typical" gap between events.
 
-**למה חציון ולא ממוצע:** הממוצע מוטה מאוד על ידי תקופות שקט ארוכות (למשל, פער לילי של 12 שעות). החציון מייצג טוב יותר את הפער ה"טיפוסי" שאדם יחווה.
+**Interpretation:** A low median (e.g., 5 minutes) indicates dense, rapid-fire events. A high median (e.g., 2 hours) indicates more spaced-out activity.`,
+    he: `**מתודולוגיה:** התרעות מקובצות לפי מזהה אירוע (group_id מפיקוד העורף). כל קבוצה מייצגת אירוע התרעה בודד שעשוי להפעיל התראות בערים מרובות בו-זמנית. פער הזמן בין **אירועים** רצופים (לא התרעות בודדות) מחושב בדקות. **החציון** של כל פערי האירועים מדווח.
 
-**פרשנות:** חציון נמוך (למשל, 3 דקות) מעיד על פעילות התרעות צפופה ומהירה. חציון גבוה (למשל, שעתיים) מעיד על התרעות מרווחות יותר.`,
+**למה קיבוץ לפי אירוע:** ללא קיבוץ, אירוע התרעה בודד שמשפיע על 50 ערים היה יוצר 49 פערים של אפס דקות, מה שהופך את החציון לנמוך באופן מלאכותי. הקיבוץ מבטיח שאנו מודדים את הזמן בין אירועי תקיפה נפרדים.
+
+**למה חציון ולא ממוצע:** הממוצע מוטה מאוד על ידי תקופות שקט ארוכות. החציון מייצג טוב יותר את הפער ה"טיפוסי" בין אירועים.
+
+**פרשנות:** חציון נמוך (למשל, 5 דקות) מעיד על אירועים צפופים ומהירים. חציון גבוה (למשל, שעתיים) מעיד על פעילות מרווחת יותר.`,
   },
 
   quiet_vs_active: {

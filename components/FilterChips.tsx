@@ -20,6 +20,7 @@ const REGIONS = [
   { id: "negev", en: "Negev", he: "נגב" },
   { id: "gaza-envelope", en: "Gaza Envelope", he: "עוטף עזה" },
   { id: "eilat-arava", en: "Eilat & Arava", he: "אילת והערבה" },
+  { id: "yehuda-vshomron", en: "Judea & Samaria", he: "יהודה ושומרון" },
 ];
 
 interface FilterChipsProps {

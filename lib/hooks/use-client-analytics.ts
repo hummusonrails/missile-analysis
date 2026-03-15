@@ -107,11 +107,21 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
     });
     const busiestDayIdx = normalizedDayCounts.indexOf(Math.max(...normalizedDayCounts));
 
-    // === TIME BETWEEN ALERTS ===
-    const sorted = [...alerts].sort((a, b) => a.timestamp - b.timestamp);
+    // === TIME BETWEEN ALERT EVENTS ===
+    // Group alerts by group_id (same event) and use the earliest timestamp per group
+    // This avoids 0-minute gaps from simultaneous alerts in the same event
+    const groupTimestamps = new Map<string, number>();
+    for (const alert of alerts) {
+      const groupId = alert.id.split("_")[0];
+      const existing = groupTimestamps.get(groupId);
+      if (!existing || alert.timestamp < existing) {
+        groupTimestamps.set(groupId, alert.timestamp);
+      }
+    }
+    const sortedGroupTimes = Array.from(groupTimestamps.values()).sort((a, b) => a - b);
     const gaps: number[] = [];
-    for (let i = 1; i < sorted.length; i++) {
-      gaps.push(Math.round((sorted[i].timestamp - sorted[i - 1].timestamp) / 60000));
+    for (let i = 1; i < sortedGroupTimes.length; i++) {
+      gaps.push(Math.round((sortedGroupTimes[i] - sortedGroupTimes[i - 1]) / 60000));
     }
     gaps.sort((a, b) => a - b);
     const medianGap = gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 0;
@@ -132,24 +142,24 @@ export function useClientAnalytics(alerts: Alert[], cityCoords: Map<string, City
       count: gaps.filter((g) => g >= b.min && g < b.max).length,
     }));
 
-    // === QUIET/ACTIVE PERIODS ===
+    // === QUIET/ACTIVE PERIODS (using group timestamps to avoid 0-gaps) ===
     let longestQuietMs = 0;
     let longestActiveMs = 0;
-    let activeStart = sorted.length > 0 ? sorted[0].timestamp : 0;
+    let activeStart = sortedGroupTimes.length > 0 ? sortedGroupTimes[0] : 0;
 
-    for (let i = 1; i < sorted.length; i++) {
-      const gap = sorted[i].timestamp - sorted[i - 1].timestamp;
+    for (let i = 1; i < sortedGroupTimes.length; i++) {
+      const gap = sortedGroupTimes[i] - sortedGroupTimes[i - 1];
       if (gap > longestQuietMs) longestQuietMs = gap;
 
-      // Active period = consecutive alerts within 30 min
+      // Active period = consecutive events within 30 min
       if (gap > 30 * 60 * 1000) {
-        const activeDuration = sorted[i - 1].timestamp - activeStart;
+        const activeDuration = sortedGroupTimes[i - 1] - activeStart;
         if (activeDuration > longestActiveMs) longestActiveMs = activeDuration;
-        activeStart = sorted[i].timestamp;
+        activeStart = sortedGroupTimes[i];
       }
     }
-    if (sorted.length > 0) {
-      const lastActive = sorted[sorted.length - 1].timestamp - activeStart;
+    if (sortedGroupTimes.length > 0) {
+      const lastActive = sortedGroupTimes[sortedGroupTimes.length - 1] - activeStart;
       if (lastActive > longestActiveMs) longestActiveMs = lastActive;
     }
 
