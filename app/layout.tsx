@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { I18nProvider } from "../lib/i18n";
+import { AIProvider } from "../components/ai/AIProvider";
 
 const siteUrl = "https://sirenwise.com";
 
@@ -87,7 +88,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="bg-bg-primary text-text-primary font-sans antialiased">
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <AIProvider>{children}</AIProvider>
+        </I18nProvider>
         <Script
           data-goatcounter="https://sirenwise.goatcounter.com/count"
           src="//gc.zgo.at/count.js"
