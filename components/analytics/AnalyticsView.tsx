@@ -7,16 +7,18 @@ import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
 import { useI18n } from "../../lib/i18n";
 import { AnalyticsCard } from "./AnalyticsCard";
 import { METHODOLOGIES } from "../../lib/methodology";
+import { AIPromptBar } from "../ai/AIPromptBar";
 
 interface AnalyticsViewProps {
   alerts: Alert[];
   cityCoords: Map<string, CityCoord>;
   regionId: string | null;
+  onAskAI?: (question: string) => void;
 }
 
 const DEFAULT_PANELS = new Set(["shabbat_vs_weekday", "hourly_histogram", "morning_vs_evening", "day_of_week"]);
 
-export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewProps) {
+export function AnalyticsView({ alerts, cityCoords, regionId, onAskAI }: AnalyticsViewProps) {
   const [activePanels, setActivePanels] = useState<Set<string>>(DEFAULT_PANELS);
   const analytics = useClientAnalytics(alerts, cityCoords);
   const { lang } = useI18n();
@@ -45,6 +47,12 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
         <div className="mx-4 mt-3 mb-1 flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border border-accent-blue/15 rounded-[10px]">
           <div className="w-1.5 h-1.5 bg-accent-blue rounded-full" />
           <span className="text-[11px] text-accent-blue font-mono">{isHe ? `מסונן לאזור: ${regionId}` : `Filtered to region: ${regionId}`}</span>
+        </div>
+      )}
+
+      {onAskAI && (
+        <div className="px-4 pt-3">
+          <AIPromptBar onSubmit={onAskAI} placeholder={isHe ? "שאלו את ה-AI..." : "Ask AI..."} />
         </div>
       )}
 

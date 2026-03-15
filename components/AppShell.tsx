@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { TabBar } from "./TabBar";
 import { FilterChips } from "./FilterChips";
@@ -16,8 +16,10 @@ import { LanguageToggle } from "./LanguageToggle";
 import { StatusBanner } from "./StatusBanner";
 import { Footer } from "./Footer";
 import { useI18n } from "../lib/i18n";
+import { useAI } from "./ai/AIProvider";
+import { AITab } from "./ai/AITab";
 
-type Tab = "map" | "analytics" | "feed";
+type Tab = "map" | "analytics" | "feed" | "ai";
 
 // Dynamically import AlertMap with SSR disabled — Leaflet requires browser APIs
 const AlertMap = dynamic(() => import("./map/AlertMap"), { ssr: false });
@@ -25,7 +27,9 @@ const AlertMap = dynamic(() => import("./map/AlertMap"), { ssr: false });
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>("map");
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [pendingAIQuestion, setPendingAIQuestion] = useState<string | undefined>();
   const { t } = useI18n();
+  const { available: aiAvailable, clearMessages } = useAI();
 
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
   const { alerts: allAlerts } = useAlerts(filter);
@@ -66,14 +70,31 @@ export function AppShell() {
     return { alertCount: count, regionCount: regions.size, lastAlertMinutes: minutes, mappedCount: mapped };
   }, [alerts, cityCoords]);
 
+  // Clear AI messages when filter changes
+  useEffect(() => {
+    clearMessages();
+  }, [filter, clearMessages]);
+
+  function handleTabChange(tab: Tab) {
+    if (activeTab === "ai" && tab !== "ai") {
+      setPendingAIQuestion(undefined);
+    }
+    setActiveTab(tab);
+  }
+
+  function handleAskAI(question: string) {
+    setPendingAIQuestion(question);
+    setActiveTab("ai");
+  }
+
   function handleShowInFeed() {
     setSelectedAlert(null);
-    setActiveTab("feed");
+    handleTabChange("feed");
   }
 
   function handleShowOnMap(alert: Alert) {
     setSelectedAlert(alert);
-    setActiveTab("map");
+    handleTabChange("map");
   }
 
   return (
@@ -135,10 +156,21 @@ export function AppShell() {
           </div>
         )}
 
-        {activeTab === "analytics" && <AnalyticsView alerts={alerts} cityCoords={cityCoords} regionId={filter.regionId} />}
+        {activeTab === "analytics" && (
+          <AnalyticsView
+            alerts={alerts}
+            cityCoords={cityCoords}
+            regionId={filter.regionId}
+            onAskAI={aiAvailable ? handleAskAI : undefined}
+          />
+        )}
 
         {activeTab === "feed" && (
           <FeedView filter={filter} onAlertTap={handleShowOnMap} />
+        )}
+
+        {activeTab === "ai" && (
+          <AITab alerts={alerts} cityCoords={cityCoords} filter={filter} initialQuestion={pendingAIQuestion} />
         )}
       </main>
 
@@ -146,7 +178,7 @@ export function AppShell() {
       <Footer />
 
       {/* Tab bar */}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabBar activeTab={activeTab} onTabChange={handleTabChange} aiAvailable={aiAvailable} />
     </div>
   );
 }

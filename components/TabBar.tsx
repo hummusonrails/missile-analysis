@@ -1,12 +1,14 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useI18n } from "../lib/i18n";
 
-type Tab = "map" | "analytics" | "feed";
+type Tab = "map" | "analytics" | "feed" | "ai";
 
 interface TabBarProps {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
+  aiAvailable?: boolean;
 }
 
 function MapIcon({ active }: { active: boolean }) {
@@ -69,15 +71,18 @@ function FeedIcon({ active }: { active: boolean }) {
   );
 }
 
-const tabIds: Tab[] = ["map", "analytics", "feed"];
+const allTabIds: Tab[] = ["map", "analytics", "feed", "ai"];
 const tabKeys: Record<Tab, string> = {
   map: "tab.map",
   analytics: "tab.analytics",
   feed: "tab.feed",
+  ai: "ai",
 };
 
-export function TabBar({ activeTab, onTabChange }: TabBarProps) {
+export function TabBar({ activeTab, onTabChange, aiAvailable }: TabBarProps) {
   const { t } = useI18n();
+
+  const tabIds = allTabIds.filter((id) => id !== "ai" || aiAvailable);
 
   return (
     <nav className="h-[72px] bg-bg-elevated border-t border-border flex-shrink-0 flex items-center">
@@ -94,7 +99,10 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
             {id === "map" && <MapIcon active={active} />}
             {id === "analytics" && <AnalyticsIcon active={active} />}
             {id === "feed" && <FeedIcon active={active} />}
-            <span className="text-[10px] font-medium uppercase tracking-wider">{t(tabKeys[id])}</span>
+            {id === "ai" && <Sparkles size={20} />}
+            <span className="text-[10px] font-medium uppercase tracking-wider">
+              {id === "ai" ? "AI" : t(tabKeys[id])}
+            </span>
           </button>
         );
       })}
