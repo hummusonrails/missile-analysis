@@ -6,9 +6,11 @@ import { TabBar } from "./TabBar";
 import { FilterChips } from "./FilterChips";
 import { MapStats } from "./map/MapStats";
 import { BottomSheet } from "./map/BottomSheet";
-import { useFilterState } from "../lib/hooks/use-filter-state";
+import { useFilterState, readInitialTab } from "../lib/hooks/use-filter-state";
 import { useAlerts } from "../lib/hooks/use-alerts";
 import { useCityCoords } from "../lib/hooks/use-city-coords";
+import { useClientAnalytics } from "../lib/hooks/use-client-analytics";
+import { useFindings } from "../lib/hooks/use-findings";
 import type { Alert } from "../lib/types";
 import { AnalyticsView } from "./analytics/AnalyticsView";
 import { FeedView } from "./feed/FeedView";
@@ -18,6 +20,11 @@ import { Footer } from "./Footer";
 import { useI18n } from "../lib/i18n";
 import { useAI } from "./ai/AIProvider";
 import { AITab } from "./ai/AITab";
+import { ThreatBadge } from "./ThreatBadge";
+import { NotificationBell } from "./NotificationBell";
+import { ShareButton } from "./ShareButton";
+import { SituationBrief } from "./map/SituationBrief";
+import { MapLegend } from "./map/MapLegend";
 
 type Tab = "map" | "analytics" | "feed" | "ai";
 
@@ -25,14 +32,14 @@ type Tab = "map" | "analytics" | "feed" | "ai";
 const AlertMap = dynamic(() => import("./map/AlertMap"), { ssr: false });
 
 export function AppShell() {
-  const [activeTab, setActiveTab] = useState<Tab>("map");
+  const [activeTab, setActiveTab] = useState<Tab>(() => readInitialTab() as Tab);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [pendingAIQuestion, setPendingAIQuestion] = useState<string | undefined>();
   const { t } = useI18n();
   const { engineStatus, clearMessages } = useAI();
   const aiAvailable = engineStatus !== null && engineStatus !== "unavailable";
 
-  const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState();
+  const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState(activeTab);
   const { alerts: allAlerts } = useAlerts(filter);
   const { coords: cityCoords } = useCityCoords();
 
@@ -71,6 +78,30 @@ export function AppShell() {
     return { alertCount: count, regionCount: regions.size, lastAlertMinutes: minutes, mappedCount: mapped };
   }, [alerts, cityCoords]);
 
+  const analytics = useClientAnalytics(alerts, cityCoords);
+  const { findings, unseenCount, markAllSeen } = useFindings(analytics);
+
+  const activeThreatTypes = useMemo(() => {
+    const types = new Set<number>();
+    for (const alert of alerts) {
+      types.add(alert.threat);
+    }
+    return types;
+  }, [alerts]);
+
+  // Sync tab to URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab !== "map") {
+      params.set("tab", activeTab);
+    } else {
+      params.delete("tab");
+    }
+    const qs = params.toString();
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, "", url);
+  }, [activeTab]);
+
   // Clear AI messages when filter changes
   useEffect(() => {
     clearMessages();
@@ -106,7 +137,14 @@ export function AppShell() {
           <div className="w-1.5 h-1.5 bg-accent-red rounded-full shadow-[0_0_8px_theme(colors.accent-red/40)] animate-pulse" />
           <h1 className="font-serif text-[17px] tracking-tight text-text-primary">{t("app.title")}</h1>
         </div>
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <ShareButton />
+          {analytics && (
+            <NotificationBell findings={findings} unseenCount={unseenCount} onOpen={markAllSeen} />
+          )}
+          {analytics && <ThreatBadge escalation={analytics.escalation_patterns} />}
+          <LanguageToggle />
+        </div>
       </header>
 
       {/* Filters */}
@@ -136,6 +174,10 @@ export function AppShell() {
               timeRange={filter.timeRange}
             />
 
+            {analytics && (
+              <SituationBrief analytics={analytics} filter={filter} />
+            )}
+
             {/* Map container */}
             <div className="flex-1 relative overflow-hidden">
               <AlertMap
@@ -143,6 +185,8 @@ export function AppShell() {
                 cityCoords={cityCoords}
                 onAlertSelect={setSelectedAlert}
               />
+
+              <MapLegend activeThreatTypes={activeThreatTypes} />
 
               {/* Bottom sheet */}
               {selectedAlert && (

@@ -12,16 +12,26 @@ interface AlertMarkersProps {
   onAlertSelect: (alert: Alert) => void;
 }
 
-function getMarkerStyle(timestamp: number): { color: string; radius: number; glow: boolean } {
+export const THREAT_COLORS: Record<number, string> = {
+  0: "#EF4444",  // Rockets — Red
+  2: "#3B82F6",  // Infiltration — Blue
+  3: "#10B981",  // Earthquake — Green
+  5: "#F59E0B",  // Hostile Aircraft — Amber
+  7: "#8B5CF6",  // Non-conventional — Purple
+  8: "#6B7280",  // General — Gray
+};
+
+function getMarkerStyle(timestamp: number, threat: number): { color: string; radius: number; opacity: number; glow: boolean } {
   const ageMs = Date.now() - timestamp;
   const ageHours = ageMs / (1000 * 60 * 60);
+  const color = THREAT_COLORS[threat] ?? "#6B7280";
 
   if (ageHours < 1) {
-    return { color: "#EF4444", radius: 10, glow: true };
+    return { color, radius: 10, opacity: 1.0, glow: true };
   } else if (ageHours < 6) {
-    return { color: "#F59E0B", radius: 8, glow: false };
+    return { color, radius: 8, opacity: 0.8, glow: false };
   } else {
-    return { color: "#3D4B5F", radius: 6, glow: false };
+    return { color, radius: 6, opacity: 0.5, glow: false };
   }
 }
 
@@ -82,12 +92,12 @@ export function AlertMarkers({ alerts, cityCoords, onAlertSelect }: AlertMarkers
       const coord = cityCoords.get(city);
       if (!coord) continue;
 
-      const { color, radius, glow } = getMarkerStyle(alert.timestamp);
+      const { color, radius, opacity, glow } = getMarkerStyle(alert.timestamp, alert.threat);
 
       const marker = L.circleMarker([coord.lat, coord.lng], {
         radius,
         fillColor: color,
-        fillOpacity: 0.9,
+        fillOpacity: opacity,
         color: glow ? color : "rgba(255,255,255,0.15)",
         weight: glow ? 2 : 1,
         className: glow ? "alert-marker-glow" : "",
