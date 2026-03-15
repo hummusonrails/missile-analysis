@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Sparkles, Shield, Zap } from "lucide-react";
 import { useAI } from "./AIProvider";
 import { useI18n } from "../../lib/i18n";
 
@@ -12,9 +12,7 @@ export function AIConsentScreen() {
   const isDownloading = engineStatus === "downloading";
   const isError = engineStatus === "error";
   const progress = engine?.downloadProgress ?? 0;
-  const downloadSize = engine?.downloadSize;
   const errorMessage = engine?.error;
-  const engineName = engine?.name ?? (isHe ? "מודל שפה" : "Language Model");
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 px-6 py-8 text-center">
@@ -23,39 +21,50 @@ export function AIConsentScreen() {
           <Sparkles size={28} />
         </div>
         <h2 className="text-text-primary font-semibold text-lg">
-          {isHe ? "עוזר AI" : "AI Assistant"}
+          {isHe ? "שאלו שאלות על הנתונים" : "Ask Questions About the Data"}
         </h2>
       </div>
 
-      <div className="max-w-sm text-text-secondary text-sm leading-relaxed space-y-2">
-        <p>
-          {isHe
-            ? `כדי לאפשר את עוזר ה-AI, נדרש להוריד מודל שפה (${engineName}) ישירות למכשיר שלך.`
-            : `To enable the AI assistant, a language model (${engineName}) needs to be downloaded directly to your device.`}
-        </p>
-        {downloadSize && (
-          <p className="text-text-tertiary text-xs font-mono">
-            {isHe ? `גודל ההורדה: ${downloadSize}` : `Download size: ${downloadSize}`}
-          </p>
-        )}
-        <p className="text-text-tertiary text-xs">
-          {isHe
-            ? "הנתונים נשארים על המכשיר שלך ולא נשלחים לשרת."
-            : "Data stays on your device and is never sent to a server."}
-        </p>
+      <p className="max-w-xs text-text-secondary text-[14px] leading-relaxed">
+        {isHe
+          ? "קבלו תשובות מיידיות על דפוסי התרעות, מגמות ותובנות — ישירות מהמכשיר שלכם."
+          : "Get instant answers about alert patterns, trends, and insights — right from your device."}
+      </p>
+
+      <div className="flex flex-col gap-3 max-w-xs w-full text-start">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent-green/10 flex items-center justify-center flex-shrink-0">
+            <Shield size={16} className="text-accent-green" />
+          </div>
+          <span className="text-[12px] text-text-secondary">
+            {isHe
+              ? "הנתונים שלכם נשארים על המכשיר — שום דבר לא נשלח לשרת"
+              : "Your data stays on your device — nothing is sent to a server"}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent-amber/10 flex items-center justify-center flex-shrink-0">
+            <Zap size={16} className="text-accent-amber" />
+          </div>
+          <span className="text-[12px] text-text-secondary">
+            {isHe
+              ? "נדרשת הורדה חד-פעמית — לאחר מכן עובד מיד"
+              : "One-time setup required — works instantly after that"}
+          </span>
+        </div>
       </div>
 
       {isError && (
-        <div className="w-full max-w-sm bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
+        <div className="w-full max-w-xs bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
           <p className="font-medium mb-1">{isHe ? "שגיאה" : "Error"}</p>
-          <p className="text-xs font-mono break-words">{errorMessage}</p>
+          <p className="text-xs break-words">{errorMessage}</p>
         </div>
       )}
 
       {isDownloading && (
-        <div className="w-full max-w-sm space-y-2">
+        <div className="w-full max-w-xs space-y-2">
           <div className="flex justify-between text-xs text-text-tertiary">
-            <span>{isHe ? "מוריד..." : "Downloading..."}</span>
+            <span>{isHe ? "מתקין..." : "Setting up..."}</span>
             <span className="font-mono">{progress}%</span>
           </div>
           <div className="w-full bg-bg-primary rounded-full h-2 overflow-hidden">
@@ -71,12 +80,12 @@ export function AIConsentScreen() {
         <button
           type="button"
           onClick={() => initEngine()}
-          className="px-5 py-2.5 rounded-xl bg-accent-blue text-white text-sm font-medium
+          className="px-6 py-3 rounded-xl bg-accent-blue text-white text-[14px] font-medium
             hover:opacity-90 transition-opacity active:scale-95"
         >
           {isError
-            ? (isHe ? "נסה שוב" : "Retry")
-            : (isHe ? "הורד והפעל" : "Download & Enable")}
+            ? (isHe ? "נסה שוב" : "Try Again")
+            : (isHe ? "הפעל" : "Enable")}
         </button>
       )}
     </div>
