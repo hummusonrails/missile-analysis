@@ -64,15 +64,27 @@ export function AIProvider({ children }: { children: ReactNode }) {
     if (detectedRef.current) return;
     detectedRef.current = true;
 
-    detectEngine().then((detected) => {
+    detectEngine().then(async (detected) => {
       if (detected) {
         setEngine(detected);
-        // Chrome AI is immediately "ready" (or needs-download but fast)
-        // Others need explicit download consent
+
         if (detected.id === "chrome-ai") {
           setEngineStatus("ready");
         } else {
-          setEngineStatus("needs-download");
+          // Try to init immediately — if the model is cached in IndexedDB
+          // it will load quickly without a network download.
+          // If it fails or takes too long, fall back to consent screen.
+          setEngineStatus("downloading");
+          try {
+            await detected.init();
+            setEngineStatus(detected.status);
+          } catch {
+            // Init failed — model not cached, show consent screen
+            detected.status = "needs-download";
+            detected.downloadProgress = undefined;
+            detected.error = undefined;
+            setEngineStatus("needs-download");
+          }
         }
       } else {
         setEngineStatus("unavailable");
