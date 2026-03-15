@@ -1,18 +1,19 @@
 import type { AIEngine, EngineId, EngineStatus } from "./types";
 
-// Augment globalThis with Chrome's experimental LanguageModel API
-declare global {
-  interface Window {
-    LanguageModel?: {
-      availability(): Promise<string>;
-      create(options?: { systemPrompt?: string }): Promise<ChromeAISession>;
-    };
-  }
+interface ChromeLanguageModel {
+  availability(): Promise<string>;
+  create(options?: { systemPrompt?: string }): Promise<ChromeAISession>;
 }
 
 interface ChromeAISession {
   promptStreaming(input: string): ReadableStream<string>;
   destroy(): void;
+}
+
+// Typed accessor for Chrome's experimental LanguageModel API
+function getChromeLanguageModel(): ChromeLanguageModel | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (globalThis as any).LanguageModel as ChromeLanguageModel | undefined;
 }
 
 export class ChromeAIEngine implements AIEngine {
@@ -24,9 +25,10 @@ export class ChromeAIEngine implements AIEngine {
   private session: ChromeAISession | null = null;
 
   static async detect(): Promise<boolean> {
-    if (typeof globalThis.LanguageModel === "undefined") return false;
+    const api = getChromeLanguageModel();
+    if (!api) return false;
     try {
-      const availability = await globalThis.LanguageModel.availability();
+      const availability = await api.availability();
       return availability !== "unavailable";
     } catch {
       return false;
@@ -34,14 +36,15 @@ export class ChromeAIEngine implements AIEngine {
   }
 
   async init(): Promise<void> {
-    if (typeof globalThis.LanguageModel === "undefined") {
+    const api = getChromeLanguageModel();
+    if (!api) {
       this.status = "unavailable";
       this.error = "Chrome Built-in AI is not available in this browser.";
       return;
     }
 
     try {
-      const availability = await globalThis.LanguageModel.availability();
+      const availability = await api.availability();
       if (availability === "unavailable") {
         this.status = "unavailable";
         this.error = "Chrome Built-in AI is not available on this device.";
@@ -53,7 +56,7 @@ export class ChromeAIEngine implements AIEngine {
       }
 
       // Create a test session to confirm availability and trigger any needed download
-      this.session = await globalThis.LanguageModel.create();
+      this.session = await api.create();
       this.status = "ready";
     } catch (err) {
       this.status = "error";
@@ -66,12 +69,13 @@ export class ChromeAIEngine implements AIEngine {
     user: string,
     signal?: AbortSignal
   ): AsyncIterable<string> {
-    if (typeof globalThis.LanguageModel === "undefined") {
+    const api = getChromeLanguageModel();
+    if (!api) {
       throw new Error("Chrome Built-in AI is not available.");
     }
 
     // Create a fresh session per prompt with system prompt
-    const session = await globalThis.LanguageModel.create({
+    const session = await api.create({
       systemPrompt: system,
     });
 
