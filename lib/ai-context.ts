@@ -115,12 +115,9 @@ Be concise, specific with numbers, and do not invent data not present in the con
 - Total alerts in view: ${totalAlerts}
 
 ## 1. Shabbat vs Weekday
-- Shabbat alerts: ${shabbat_vs_weekday.shabbatCount} (${shabbat_vs_weekday.shabbatPercent}% of total)
-- Weekday alerts: ${shabbat_vs_weekday.weekdayCount}
-- Avg per Shabbat day: ${shabbat_vs_weekday.avgPerShabbatDay}
-- Avg per weekday: ${shabbat_vs_weekday.avgPerWeekday}
-- Shabbat multiplier vs weekday: ${shabbat_vs_weekday.multiplier}x
-- Conclusion: ${shabbat_vs_weekday.multiplier > 1 ? `Shabbat IS more dangerous — ${shabbat_vs_weekday.multiplier}x more alerts per day than weekdays` : shabbat_vs_weekday.multiplier < 1 ? "Weekdays have more alerts than Shabbat" : "Shabbat and weekdays have roughly equal alert rates"}
+ANSWER: ${shabbat_vs_weekday.avgPerShabbatDay > shabbat_vs_weekday.avgPerWeekday ? `YES — Shabbat days average ${shabbat_vs_weekday.avgPerShabbatDay} alerts/day vs ${shabbat_vs_weekday.avgPerWeekday} on weekdays. Shabbat is MORE dangerous.` : shabbat_vs_weekday.avgPerShabbatDay < shabbat_vs_weekday.avgPerWeekday ? `NO — Weekdays average ${shabbat_vs_weekday.avgPerWeekday} alerts/day vs ${shabbat_vs_weekday.avgPerShabbatDay} on Shabbat days. Weekdays are MORE dangerous in this period.` : `EQUAL — both average about ${shabbat_vs_weekday.avgPerShabbatDay} alerts/day.`}
+- Total Shabbat alerts: ${shabbat_vs_weekday.shabbatCount}, Total weekday alerts: ${shabbat_vs_weekday.weekdayCount}
+- Ratio: ${shabbat_vs_weekday.multiplier}x
 
 ## 2. Hourly Pattern
 - ${formatHourlyPeak(hourly_histogram.peakHour, hourly_histogram.quietestHour)}
