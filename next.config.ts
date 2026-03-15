@@ -12,8 +12,8 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://gc.zgo.at https://cdn.jsdelivr.net blob:",
-              "script-src-elem 'self' 'unsafe-inline' https://gc.zgo.at https://cdn.jsdelivr.net",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://gc.zgo.at https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://vercel.live blob:",
+              "script-src-elem 'self' 'unsafe-inline' https://gc.zgo.at https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https:",
               "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com",
