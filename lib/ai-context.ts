@@ -120,6 +120,7 @@ Be concise, specific with numbers, and do not invent data not present in the con
 - Avg per Shabbat day: ${shabbat_vs_weekday.avgPerShabbatDay}
 - Avg per weekday: ${shabbat_vs_weekday.avgPerWeekday}
 - Shabbat multiplier vs weekday: ${shabbat_vs_weekday.multiplier}x
+- Conclusion: ${shabbat_vs_weekday.multiplier > 1 ? `Shabbat IS more dangerous — ${shabbat_vs_weekday.multiplier}x more alerts per day than weekdays` : shabbat_vs_weekday.multiplier < 1 ? "Weekdays have more alerts than Shabbat" : "Shabbat and weekdays have roughly equal alert rates"}
 
 ## 2. Hourly Pattern
 - ${formatHourlyPeak(hourly_histogram.peakHour, hourly_histogram.quietestHour)}
@@ -127,6 +128,7 @@ Be concise, specific with numbers, and do not invent data not present in the con
 ## 3. Morning vs Evening
 - Morning (06:00–18:00): ${morning_vs_evening.morningCount} alerts
 - Evening (18:00–06:00): ${morning_vs_evening.eveningCount} alerts (${morning_vs_evening.eveningPercent}% of total)
+- Conclusion: ${morning_vs_evening.eveningPercent > 50 ? `Evening/night hours are MORE dangerous (${morning_vs_evening.eveningPercent}% of alerts)` : `Morning/daytime hours have more alerts (${100 - morning_vs_evening.eveningPercent}%)`}. Safest time is around ${hourly_histogram.quietestHour}:00, most dangerous is ${hourly_histogram.peakHour}:00.
 
 ## 4. Day of Week
 - Busiest day: ${busiestDay} (avg ${day_of_week.busiestCount} alerts/day)
@@ -153,6 +155,7 @@ ${formatMonthlyTrends(monthly_trends.months, monthly_trends.monthOverMonthDelta)
 - Current hour rate: ${escalation_patterns.currentRate} alerts
 - 7-day hourly baseline: ${escalation_patterns.baseline} alerts/hour
 - Escalation multiplier: ${escalation_patterns.multiplier}x
+- Conclusion: ${escalation_patterns.currentRate === 0 ? "Currently QUIET — no alerts in the last hour" : escalation_patterns.multiplier > 2 ? `ESCALATING — current rate is ${escalation_patterns.multiplier}x the average` : "Current rate is NORMAL relative to the average"}
 
 ## 11. Multi-Region Correlation
 - Alert groups spanning 3+ regions: ${multi_city_correlation.multiRegionCount}

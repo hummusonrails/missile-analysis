@@ -1,12 +1,12 @@
 import type { AIEngine, EngineId, EngineStatus } from "./types";
 
-const MODEL_ID = "Qwen2-0.5B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
 
 export class WebLLMEngine implements AIEngine {
   readonly id: EngineId = "webllm";
-  readonly name = "WebLLM (Qwen2 0.5B)";
+  readonly name = "WebLLM (Qwen2.5 1.5B)";
   status: EngineStatus = "unavailable";
-  readonly downloadSize = "350MB";
+  readonly downloadSize = "900MB";
   downloadProgress?: number;
   error?: string;
 
