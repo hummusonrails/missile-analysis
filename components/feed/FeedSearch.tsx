@@ -1,11 +1,14 @@
 "use client";
 
+import { useI18n } from "../../lib/i18n";
+
 interface FeedSearchProps {
   value: string;
   onChange: (value: string) => void;
 }
 
 export function FeedSearch({ value, onChange }: FeedSearchProps) {
+  const { t } = useI18n();
   return (
     <div className="px-4 pb-2.5">
       <div className="bg-bg-surface border border-border rounded-[10px] px-3.5 py-2.5 flex items-center gap-2">
@@ -24,7 +27,7 @@ export function FeedSearch({ value, onChange }: FeedSearchProps) {
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Search cities or regions..."
+          placeholder={t("feed.search")}
           className="bg-transparent text-[13px] text-text-primary placeholder:text-text-tertiary outline-none w-full"
         />
         {value && (

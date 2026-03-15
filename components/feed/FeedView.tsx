@@ -6,6 +6,7 @@ import { useCityCoords } from "../../lib/hooks/use-city-coords";
 import { FeedSearch } from "./FeedSearch";
 import { FeedItem } from "./FeedItem";
 import type { Alert, FilterState } from "../../lib/types";
+import { useI18n } from "../../lib/i18n";
 
 interface FeedViewProps {
   filter: FilterState;
@@ -18,6 +19,7 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
 
   const { alerts, loading, hasMore, loadMore } = useAlertFeed(filter);
   const { coords: cityCoords } = useCityCoords();
+  const { lang, t } = useI18n();
 
   // Initial load on mount
   useEffect(() => {
@@ -119,7 +121,7 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
           {!loading && !hasMore && filteredAlerts.length > 0 && (
             <div className="flex justify-center py-6">
               <span className="text-[11px] text-text-tertiary">
-                End of alerts
+                {lang === "he" ? "סוף ההתרעות" : "End of alerts"}
               </span>
             </div>
           )}
@@ -127,10 +129,10 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
           {/* Empty state */}
           {!loading && filteredAlerts.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 gap-2">
-              <span className="text-[13px] text-text-secondary">No alerts found</span>
+              <span className="text-[13px] text-text-secondary">{lang === "he" ? "לא נמצאו התרעות" : "No alerts found"}</span>
               {searchQuery && (
                 <span className="text-[11px] text-text-tertiary">
-                  Try a different search term
+                  {lang === "he" ? "נסו מונח חיפוש אחר" : "Try a different search term"}
                 </span>
               )}
             </div>

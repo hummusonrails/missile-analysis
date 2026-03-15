@@ -5,21 +5,21 @@ import type { TimeRange } from "../lib/types";
 import { useI18n } from "../lib/i18n";
 
 const REGIONS = [
-  { id: "western-galilee", label: "Western Galilee" },
-  { id: "upper-galilee", label: "Upper Galilee" },
-  { id: "lower-galilee", label: "Lower Galilee" },
-  { id: "haifa-krayot", label: "Haifa & Krayot" },
-  { id: "jezreel-valley", label: "Jezreel Valley" },
-  { id: "golan-heights", label: "Golan Heights" },
-  { id: "sharon", label: "Sharon" },
-  { id: "tel-aviv-gush-dan", label: "Tel Aviv & Gush Dan" },
-  { id: "central", label: "Central" },
-  { id: "jerusalem", label: "Jerusalem" },
-  { id: "shfela", label: "Shfela" },
-  { id: "ashkelon-coast", label: "Ashkelon Coast" },
-  { id: "negev", label: "Negev" },
-  { id: "gaza-envelope", label: "Gaza Envelope" },
-  { id: "eilat-arava", label: "Eilat & Arava" },
+  { id: "western-galilee", en: "Western Galilee", he: "גליל מערבי" },
+  { id: "upper-galilee", en: "Upper Galilee", he: "גליל עליון" },
+  { id: "lower-galilee", en: "Lower Galilee", he: "גליל תחתון" },
+  { id: "haifa-krayot", en: "Haifa & Krayot", he: "חיפה והקריות" },
+  { id: "jezreel-valley", en: "Jezreel Valley", he: "עמק יזרעאל" },
+  { id: "golan-heights", en: "Golan Heights", he: "רמת הגולן" },
+  { id: "sharon", en: "Sharon", he: "השרון" },
+  { id: "tel-aviv-gush-dan", en: "Tel Aviv & Gush Dan", he: "תל אביב וגוש דן" },
+  { id: "central", en: "Central", he: "מרכז" },
+  { id: "jerusalem", en: "Jerusalem", he: "ירושלים" },
+  { id: "shfela", en: "Shfela", he: "שפלה" },
+  { id: "ashkelon-coast", en: "Ashkelon Coast", he: "חוף אשקלון" },
+  { id: "negev", en: "Negev", he: "נגב" },
+  { id: "gaza-envelope", en: "Gaza Envelope", he: "עוטף עזה" },
+  { id: "eilat-arava", en: "Eilat & Arava", he: "אילת והערבה" },
 ];
 
 interface FilterChipsProps {
@@ -48,7 +48,7 @@ export function FilterChips({
   alertCount,
   loading,
 }: FilterChipsProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [startDate, setStartDate] = useState("");
@@ -118,7 +118,7 @@ export function FilterChips({
             >
               {regionId !== null ? (
                 <>
-                  <span>{REGIONS.find((r) => r.id === regionId)?.label ?? regionId}</span>
+                  <span>{(() => { const r = REGIONS.find((r) => r.id === regionId); return r ? (lang === "he" ? r.he : r.en) : regionId; })()}</span>
                   <span
                     role="button"
                     onClick={(e) => {
@@ -144,7 +144,7 @@ export function FilterChips({
                     regionId === null ? "bg-accent-blue/10 text-accent-blue font-medium" : "text-text-secondary hover:bg-bg-surface-hover"
                   }`}
                 >
-                  All Regions
+                  {t("filter.allRegions")}
                 </button>
                 {REGIONS.map((region) => (
                   <button
@@ -154,7 +154,7 @@ export function FilterChips({
                       regionId === region.id ? "bg-accent-blue/10 text-accent-blue font-medium" : "text-text-secondary hover:bg-bg-surface-hover"
                     }`}
                   >
-                    {region.label}
+                    {lang === "he" ? region.he : region.en}
                   </button>
                 ))}
               </div>

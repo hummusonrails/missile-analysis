@@ -1,6 +1,7 @@
 "use client";
 
 import type { Alert, CityCoord } from "../../lib/types";
+import { useI18n } from "../../lib/i18n";
 
 interface FeedItemProps {
   alert: Alert;
@@ -8,34 +9,21 @@ interface FeedItemProps {
   onTap: (alert: Alert) => void;
 }
 
-function timeAgo(timestamp: number): string {
-  const diffMs = Date.now() - timestamp;
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const h = Math.floor(diffMin / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
-function threatLabel(threat: number): string {
-  switch (threat) {
-    case 0: return "Low";
-    case 1: return "Medium";
-    case 2: return "High";
-    case 3: return "Critical";
-    default: return "Unknown";
-  }
-}
+const THREAT_LABELS: Record<number, { en: string; he: string }> = {
+  0: { en: "Rockets", he: "רקטות" },
+  2: { en: "Infiltration", he: "חדירה" },
+  3: { en: "Earthquake", he: "רעידת אדמה" },
+  5: { en: "Hostile Aircraft", he: "כלי טיס עוין" },
+  7: { en: "Non-conv.", he: "לא קונבנציונלי" },
+  8: { en: "Alert", he: "התרעה" },
+};
 
 function threatBadgeColor(threat: number): string {
   switch (threat) {
-    case 0: return "bg-text-tertiary/10 text-text-secondary border-text-tertiary/20";
-    case 1: return "bg-accent-amber/10 text-accent-amber border-accent-amber/20";
-    case 2: return "bg-accent-red/10 text-accent-red border-accent-red/20";
-    case 3: return "bg-accent-red/20 text-accent-red border-accent-red/40";
-    default: return "bg-text-tertiary/10 text-text-tertiary border-text-tertiary/20";
+    case 0: return "bg-accent-red/10 text-accent-red border-accent-red/20";
+    case 5: return "bg-accent-amber/10 text-accent-amber border-accent-amber/20";
+    case 2: return "bg-accent-blue/10 text-accent-blue border-accent-blue/20";
+    default: return "bg-text-tertiary/10 text-text-secondary border-text-tertiary/20";
   }
 }
 
@@ -65,16 +53,26 @@ function recencyBorderColor(recency: Recency): string {
 }
 
 function recencyGlow(recency: Recency): string {
-  if (recency === "recent") {
-    return "shadow-[inset_3px_0_8px_rgba(239,68,68,0.25)]";
-  }
+  if (recency === "recent") return "shadow-[inset_3px_0_8px_rgba(239,68,68,0.25)]";
   return "";
 }
 
 export function FeedItem({ alert, cityCoords, onTap }: FeedItemProps) {
+  const { lang } = useI18n();
+  const isHe = lang === "he";
   const recency = getRecency(alert.timestamp);
 
-  // Derive unique region(s) from cities
+  function timeAgo(timestamp: number): string {
+    const diffMs = Date.now() - timestamp;
+    const diffMin = Math.floor(diffMs / 60_000);
+    if (diffMin < 1) return isHe ? "עכשיו" : "Just now";
+    if (diffMin < 60) return isHe ? `לפני ${diffMin} דק'` : `${diffMin}m ago`;
+    const h = Math.floor(diffMin / 60);
+    if (h < 24) return isHe ? `לפני ${h} שע'` : `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return isHe ? `לפני ${d} ימים` : `${d}d ago`;
+  }
+
   const regions = Array.from(
     new Set(
       alert.cities
@@ -83,9 +81,9 @@ export function FeedItem({ alert, cityCoords, onTap }: FeedItemProps) {
     )
   );
 
-  // City display names — up to 4 then "+N more"
   const displayCities = alert.cities.slice(0, 4);
   const remaining = alert.cities.length - displayCities.length;
+  const threatInfo = THREAT_LABELS[alert.threat] || { en: "Alert", he: "התרעה" };
 
   return (
     <button
@@ -97,19 +95,15 @@ export function FeedItem({ alert, cityCoords, onTap }: FeedItemProps) {
         recencyGlow(recency),
       ].join(" ")}
     >
-      {/* Top row: time + threat badge */}
       <div className="flex items-center justify-between mb-2">
         <span className={`font-mono text-[12px] font-medium ${recencyTimeColor(recency)}`}>
           {timeAgo(alert.timestamp)}
         </span>
-        <span
-          className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${threatBadgeColor(alert.threat)}`}
-        >
-          {threatLabel(alert.threat)}
+        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${threatBadgeColor(alert.threat)}`}>
+          {isHe ? threatInfo.he : threatInfo.en}
         </span>
       </div>
 
-      {/* City list */}
       <div className="flex flex-wrap gap-1 mb-2">
         {displayCities.map((city) => {
           const coord = cityCoords.get(city);
@@ -118,18 +112,17 @@ export function FeedItem({ alert, cityCoords, onTap }: FeedItemProps) {
               key={city}
               className="text-[12px] text-text-primary bg-bg-elevated border border-border rounded-md px-1.5 py-0.5"
             >
-              {coord?.city_name_en ?? city}
+              {isHe ? city : (coord?.city_name_en ?? city)}
             </span>
           );
         })}
         {remaining > 0 && (
           <span className="text-[12px] text-text-tertiary bg-bg-elevated border border-border rounded-md px-1.5 py-0.5">
-            +{remaining} more
+            +{remaining} {isHe ? "נוספים" : "more"}
           </span>
         )}
       </div>
 
-      {/* Footer: region + city count */}
       <div className="flex items-center justify-between">
         {regions.length > 0 ? (
           <span className="text-[11px] text-text-secondary capitalize">
@@ -139,7 +132,7 @@ export function FeedItem({ alert, cityCoords, onTap }: FeedItemProps) {
           <span />
         )}
         <span className="text-[11px] text-text-tertiary">
-          {alert.cities.length} {alert.cities.length === 1 ? "city" : "cities"}
+          {alert.cities.length} {isHe ? "ערים" : (alert.cities.length === 1 ? "city" : "cities")}
         </span>
       </div>
     </button>
