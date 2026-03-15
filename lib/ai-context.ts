@@ -174,3 +174,43 @@ ${Object.entries(THREAT_NAMES)
 - When referencing numbers, be precise. Round percentages to the nearest whole number.
 - Keep answers focused and concise unless the user requests detail.`;
 }
+
+/**
+ * Compact system prompt for lightweight models (e.g. Wllama/SmolLM 135M).
+ * Keeps context under ~500 tokens to avoid OOM crashes on mobile Safari.
+ */
+export function buildCompactSystemPrompt(
+  analytics: Analytics,
+  filter: FilterState,
+  lang: string
+): string {
+  const {
+    totalAlerts,
+    shabbat_vs_weekday,
+    hourly_histogram,
+    morning_vs_evening,
+    day_of_week,
+    threat_distribution,
+    regional_heatmap,
+    escalation_patterns,
+  } = analytics;
+
+  const topRegion = Object.entries(regional_heatmap.regions)
+    .sort(([, a], [, b]) => b - a)[0];
+
+  const mainThreat = THREAT_NAMES[threat_distribution.mostCommonLevel] ?? "Unknown";
+
+  return `You are a concise alert analyst for SirenWise (Israel missile alerts).
+${langInstruction(lang)}
+Answer ONLY from the facts below. Be brief (2-4 sentences).
+
+Facts for ${formatTimeRange(filter)}${filter.regionId ? `, region: ${filter.regionId}` : ""}:
+- ${totalAlerts} total alerts
+- Shabbat avg ${shabbat_vs_weekday.avgPerShabbatDay}/day vs weekday ${shabbat_vs_weekday.avgPerWeekday}/day
+- Peak hour: ${hourly_histogram.peakHour}:00, quietest: ${hourly_histogram.quietestHour}:00
+- ${morning_vs_evening.eveningPercent}% of alerts at night (18:00-06:00)
+- Busiest day: ${day_of_week.busiestDay}
+- Main threat: ${mainThreat}
+- Most active region: ${topRegion ? `${topRegion[0]} (${topRegion[1]})` : "N/A"}
+- Escalation: ${escalation_patterns.currentRate === 0 ? "quiet" : `${escalation_patterns.multiplier}x baseline`}`;
+}

@@ -5,7 +5,7 @@ import type { Alert, CityCoord, FilterState } from "../../lib/types";
 import { useAI } from "./AIProvider";
 import { useI18n } from "../../lib/i18n";
 import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
-import { buildSystemPrompt } from "../../lib/ai-context";
+import { buildSystemPrompt, buildCompactSystemPrompt } from "../../lib/ai-context";
 import { AIConsentScreen } from "./AIConsentScreen";
 import { AIChatView } from "./AIChatView";
 import { AIPromptBar } from "./AIPromptBar";
@@ -19,7 +19,7 @@ interface AITabProps {
 }
 
 export function AITab({ alerts, cityCoords, filter, initialQuestion }: AITabProps) {
-  const { engineStatus, sendMessage, isGenerating } = useAI();
+  const { engine, engineStatus, sendMessage, isGenerating } = useAI();
   const { lang, t } = useI18n();
   const isHe = lang === "he";
   const analytics = useClientAnalytics(alerts, cityCoords);
@@ -31,10 +31,13 @@ export function AITab({ alerts, cityCoords, filter, initialQuestion }: AITabProp
     engineStatus === "downloading" ||
     engineStatus === "error";
 
+  const useCompact = engine?.id === "wllama";
   const systemPrompt = useMemo(() => {
     if (!analytics) return "";
-    return buildSystemPrompt(analytics, filter, lang);
-  }, [analytics, filter, lang]);
+    return useCompact
+      ? buildCompactSystemPrompt(analytics, filter, lang)
+      : buildSystemPrompt(analytics, filter, lang);
+  }, [analytics, filter, lang, useCompact]);
 
   async function handleAsk(question: string) {
     if (!analytics || !isReady) return;

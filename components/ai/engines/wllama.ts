@@ -92,7 +92,7 @@ export class WllamaEngine implements AIEngine {
 
     // Wllama may not support true streaming — get full result and simulate word-by-word
     const result: string = await this.wllama.createCompletion(chatMLPrompt, {
-      nPredict: 512,
+      nPredict: 256,
       stopTokens: [],
       sampling: {
         temp: 0.7,
