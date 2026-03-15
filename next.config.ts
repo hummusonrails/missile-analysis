@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: { unoptimized: true },
+  transpilePackages: ["@wllama/wllama"],
   async headers() {
     return [
       {
