@@ -4,7 +4,9 @@ import { useState } from "react";
 import { ANALYTICS_PANELS } from "../../lib/types";
 import type { Alert, CityCoord } from "../../lib/types";
 import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
+import { useI18n } from "../../lib/i18n";
 import { AnalyticsCard } from "./AnalyticsCard";
+import { METHODOLOGIES } from "../../lib/methodology";
 
 interface AnalyticsViewProps {
   alerts: Alert[];
@@ -17,6 +19,8 @@ const DEFAULT_PANELS = new Set(["shabbat_vs_weekday", "hourly_histogram", "morni
 export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewProps) {
   const [activePanels, setActivePanels] = useState<Set<string>>(DEFAULT_PANELS);
   const analytics = useClientAnalytics(alerts, cityCoords);
+  const { lang } = useI18n();
+  const isHe = lang === "he";
 
   function togglePanel(key: string) {
     setActivePanels((prev) => {
@@ -30,7 +34,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
   if (!analytics) {
     return (
       <div className="h-full flex items-center justify-center text-text-tertiary text-[13px]">
-        No alert data available for selected range
+        {isHe ? "אין נתוני התרעות לטווח הנבחר" : "No alert data available for selected range"}
       </div>
     );
   }
@@ -40,7 +44,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
       {regionId && (
         <div className="mx-4 mt-3 mb-1 flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border border-accent-blue/15 rounded-[10px]">
           <div className="w-1.5 h-1.5 bg-accent-blue rounded-full" />
-          <span className="text-[11px] text-accent-blue font-mono">Filtered to region: {regionId}</span>
+          <span className="text-[11px] text-accent-blue font-mono">{isHe ? `מסונן לאזור: ${regionId}` : `Filtered to region: ${regionId}`}</span>
         </div>
       )}
 
@@ -56,7 +60,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                   : "bg-bg-surface border-border text-text-tertiary hover:text-text-secondary hover:border-border-active"
               }`}
             >
-              {panel.labelEn}
+              {isHe ? panel.labelHe : panel.labelEn}
             </button>
           ))}
         </div>
@@ -65,35 +69,38 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
       <div className="flex-1 overflow-y-auto px-4 pt-1 pb-6 space-y-2.5">
         {activePanels.size === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-2">
-            <span className="text-[13px] text-text-tertiary font-mono">No panels selected</span>
+            <span className="text-[13px] text-text-tertiary font-mono">{isHe ? "לא נבחרו לוחות" : "No panels selected"}</span>
           </div>
         ) : (
           <>
             {activePanels.has("shabbat_vs_weekday") && (
-              <AnalyticsCard title="Shabbat vs Weekday" badge={{ label: `${analytics.shabbat_vs_weekday.multiplier}x`, direction: analytics.shabbat_vs_weekday.multiplier > 1 ? "up" : "down" }}>
+              <AnalyticsCard title={isHe ? "שבת מול ימי חול" : "Shabbat vs Weekday"} methodology={METHODOLOGIES.shabbat_vs_weekday} badge={{ label: `${analytics.shabbat_vs_weekday.multiplier}x`, direction: analytics.shabbat_vs_weekday.multiplier > 1 ? "up" : "down" }}>
                 <div className="flex gap-2 px-4 py-3">
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg per Shabbat day</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "ממוצע ליום שבת" : "Avg per Shabbat day"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.shabbat_vs_weekday.avgPerShabbatDay}</div>
                   </div>
                   <div className="w-px bg-border my-1" />
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg per Weekday</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "ממוצע ליום חול" : "Avg per Weekday"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{analytics.shabbat_vs_weekday.avgPerWeekday}</div>
                   </div>
                 </div>
                 <div className="px-4 pb-2 flex justify-between text-[10px] text-text-tertiary font-mono">
-                  <span>Total Shabbat: {analytics.shabbat_vs_weekday.shabbatCount}</span>
-                  <span>Total Weekday: {analytics.shabbat_vs_weekday.weekdayCount}</span>
+                  <span>{isHe ? "סה\"כ שבת" : "Total Shabbat"}: {analytics.shabbat_vs_weekday.shabbatCount}</span>
+                  <span>{isHe ? "סה\"כ ימי חול" : "Total Weekday"}: {analytics.shabbat_vs_weekday.weekdayCount}</span>
                 </div>
                 <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  On average, a Shabbat day sees <strong className="text-accent-amber font-semibold">{analytics.shabbat_vs_weekday.avgPerShabbatDay} alerts</strong> vs <strong className="text-accent-blue font-semibold">{analytics.shabbat_vs_weekday.avgPerWeekday}</strong> on a typical weekday ({analytics.shabbat_vs_weekday.multiplier}x).
+                  {isHe
+                    ? <>בממוצע, יום שבת רואה <strong className="text-accent-amber font-semibold">{analytics.shabbat_vs_weekday.avgPerShabbatDay} התרעות</strong> מול <strong className="text-accent-blue font-semibold">{analytics.shabbat_vs_weekday.avgPerWeekday}</strong> ביום חול טיפוסי ({analytics.shabbat_vs_weekday.multiplier}x).</>
+                    : <>On average, a Shabbat day sees <strong className="text-accent-amber font-semibold">{analytics.shabbat_vs_weekday.avgPerShabbatDay} alerts</strong> vs <strong className="text-accent-blue font-semibold">{analytics.shabbat_vs_weekday.avgPerWeekday}</strong> on a typical weekday ({analytics.shabbat_vs_weekday.multiplier}x).</>
+                  }
                 </div>
               </AnalyticsCard>
             )}
 
             {activePanels.has("hourly_histogram") && (
-              <AnalyticsCard title="Hourly Pattern" badge={{ label: `Peak: ${analytics.hourly_histogram.peakHour}:00`, direction: "neutral" }}>
+              <AnalyticsCard title={isHe ? "דפוס שעתי" : "Hourly Pattern"} methodology={METHODOLOGIES.hourly_histogram} badge={{ label: `${isHe ? "שיא" : "Peak"}: ${analytics.hourly_histogram.peakHour}:00`, direction: "neutral" }}>
                 <div className="px-4 py-3">
                   <div className="flex items-end gap-[2px] h-16">
                     {analytics.hourly_histogram.hours.map((h) => {
@@ -118,7 +125,10 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                   </div>
                 </div>
                 <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                  Alerts are most frequent around <strong className="text-accent-amber font-semibold">{analytics.hourly_histogram.peakHour}:00</strong> Israel time. The quietest window is around {analytics.hourly_histogram.quietestHour}:00.
+                  {isHe
+                    ? <>התרעות שכיחות ביותר סביב השעה <strong className="text-accent-amber font-semibold">{analytics.hourly_histogram.peakHour}:00</strong> בשעון ישראל. החלון השקט ביותר הוא סביב {analytics.hourly_histogram.quietestHour}:00.</>
+                    : <>Alerts are most frequent around <strong className="text-accent-amber font-semibold">{analytics.hourly_histogram.peakHour}:00</strong> Israel time. The quietest window is around {analytics.hourly_histogram.quietestHour}:00.</>
+                  }
                 </div>
               </AnalyticsCard>
             )}
@@ -126,9 +136,9 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             {activePanels.has("morning_vs_evening") && (() => {
               const { morningCount, eveningCount, eveningPercent, peakHour, quietestHour } = analytics.morning_vs_evening;
               const morningPercent = 100 - eveningPercent;
-              const dominant = eveningPercent > 50 ? "evening and nighttime" : "daytime";
+              const dominant = eveningPercent > 50 ? (isHe ? "שעות הערב והלילה" : "evening and nighttime") : (isHe ? "שעות היום" : "daytime");
               return (
-                <AnalyticsCard title="Morning vs Evening" badge={{ label: `${eveningPercent}% evening`, direction: eveningPercent > 60 ? "up" : "neutral" }}>
+                <AnalyticsCard title={isHe ? "בוקר מול ערב" : "Morning vs Evening"} methodology={METHODOLOGIES.morning_vs_evening} badge={{ label: `${eveningPercent}% ${isHe ? "ערב" : "evening"}`, direction: eveningPercent > 60 ? "up" : "neutral" }}>
                   <div className="px-4 py-3">
                     <div className="flex gap-1 h-6 rounded-full overflow-hidden">
                       <div className="bg-accent-blue/60 rounded-l-full" style={{ width: `${morningPercent}%` }} />
@@ -140,14 +150,17 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
                     </div>
                   </div>
                   <div className="mx-4 mb-3.5 p-3 bg-accent-blue/5 border border-accent-blue/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
-                    Most alerts occur during {dominant} hours. The single most active hour is <strong className="text-accent-blue font-semibold">{peakHour}:00</strong>, while <strong className="text-accent-green font-semibold">{quietestHour}:00</strong> tends to be quietest.
+                    {isHe
+                      ? <>רוב ההתרעות מתרחשות ב{dominant}. השעה הפעילה ביותר היא <strong className="text-accent-blue font-semibold">{peakHour}:00</strong>, בעוד <strong className="text-accent-green font-semibold">{quietestHour}:00</strong> נוטה להיות השקטה ביותר.</>
+                      : <>Most alerts occur during {dominant} hours. The single most active hour is <strong className="text-accent-blue font-semibold">{peakHour}:00</strong>, while <strong className="text-accent-green font-semibold">{quietestHour}:00</strong> tends to be quietest.</>
+                    }
                   </div>
                 </AnalyticsCard>
               );
             })()}
 
             {activePanels.has("day_of_week") && (
-              <AnalyticsCard title="Avg Alerts Per Day of Week" badge={{ label: `Busiest: ${analytics.day_of_week.busiestDay}`, direction: "neutral" }}>
+              <AnalyticsCard title={isHe ? "ממוצע התרעות ליום בשבוע" : "Avg Alerts Per Day of Week"} methodology={METHODOLOGIES.day_of_week} badge={{ label: `${isHe ? "עמוס" : "Busiest"}: ${analytics.day_of_week.busiestDay}`, direction: "neutral" }}>
                 <div className="px-4 py-3">
                   <div className="flex items-end gap-1 h-16">
                     {analytics.day_of_week.days.map((d: { day: number; name: string; count: number }) => {
@@ -188,7 +201,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               const topType = activeTypes.length > 0 ? activeTypes.reduce((max, t) => (analytics.threat_distribution.counts[t.code] || 0) > (analytics.threat_distribution.counts[max.code] || 0) ? t : max, activeTypes[0]) : null;
 
               return (
-                <AnalyticsCard title="Alert Types" badge={topType ? { label: topType.label, direction: "neutral" } : undefined}>
+                <AnalyticsCard title={isHe ? "סוגי התרעות" : "Alert Types"} methodology={METHODOLOGIES.threat_distribution} badge={topType ? { label: topType.label, direction: "neutral" } : undefined}>
                   <div className="px-4 py-3 space-y-2">
                     {activeTypes.map((t) => {
                       const count = analytics.threat_distribution.counts[t.code] || 0;
@@ -218,7 +231,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               const median = analytics.time_between_alerts.medianGapMinutes;
               const formatted = median < 60 ? `${median} minutes` : `${Math.round(median / 60 * 10) / 10} hours`;
               return (
-                <AnalyticsCard title="Time Between Alerts" badge={{ label: `${median}m median`, direction: "neutral" }}>
+                <AnalyticsCard title={isHe ? "זמן בין התרעות" : "Time Between Alerts"} methodology={METHODOLOGIES.time_between_alerts} badge={{ label: `${median}m ${isHe ? "חציון" : "median"}`, direction: "neutral" }}>
                   <div className="px-4 py-3">
                     <div className="font-mono text-3xl font-bold text-accent-blue tracking-tight text-center mb-2">
                       {median < 60 ? `${median}m` : `${Math.round(median / 60 * 10) / 10}h`}
@@ -233,15 +246,15 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             })()}
 
             {activePanels.has("quiet_vs_active") && (
-              <AnalyticsCard title="Quiet & Active Periods">
+              <AnalyticsCard title={isHe ? "תקופות שקט ופעילות" : "Quiet & Active Periods"} methodology={METHODOLOGIES.quiet_vs_active}>
                 <div className="flex gap-2 px-4 py-3">
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Longest quiet</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "שקט ארוך ביותר" : "Longest quiet"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-green tracking-tight">{analytics.quiet_vs_active.longestQuietHours}h</div>
                   </div>
                   <div className="w-px bg-border my-1" />
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Longest active</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "פעיל ארוך ביותר" : "Longest active"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-red tracking-tight">{analytics.quiet_vs_active.longestActiveHours}h</div>
                   </div>
                 </div>
@@ -252,7 +265,7 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
 
             {activePanels.has("monthly_trends") && (
-              <AnalyticsCard title="Monthly Trends" badge={analytics.monthly_trends.monthOverMonthDelta !== 0 ? { label: `${analytics.monthly_trends.monthOverMonthDelta > 0 ? "+" : ""}${analytics.monthly_trends.monthOverMonthDelta}%`, direction: analytics.monthly_trends.monthOverMonthDelta > 0 ? "up" : "down" } : undefined}>
+              <AnalyticsCard title={isHe ? "מגמות חודשיות" : "Monthly Trends"} methodology={METHODOLOGIES.monthly_trends} badge={analytics.monthly_trends.monthOverMonthDelta !== 0 ? { label: `${analytics.monthly_trends.monthOverMonthDelta > 0 ? "+" : ""}${analytics.monthly_trends.monthOverMonthDelta}%`, direction: analytics.monthly_trends.monthOverMonthDelta > 0 ? "up" : "down" } : undefined}>
                 <div className="px-4 py-3 space-y-1.5">
                   {analytics.monthly_trends.months.map((m: { month: string; count: number }) => (
                     <div key={m.month} className="flex items-center gap-2">
@@ -284,15 +297,15 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
               }
 
               return (
-                <AnalyticsCard title="Current Escalation" badge={{ label: badgeLabel, direction: badgeDir }}>
+                <AnalyticsCard title={isHe ? "הסלמה נוכחית" : "Current Escalation"} methodology={METHODOLOGIES.escalation_patterns} badge={{ label: badgeLabel, direction: badgeDir }}>
                   <div className="flex gap-2 px-4 py-3">
                     <div className="flex-1 text-center">
-                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Last hour</div>
+                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "שעה אחרונה" : "Last hour"}</div>
                       <div className={`font-mono text-2xl font-bold tracking-tight ${isQuiet ? "text-accent-green" : isElevated ? "text-accent-red" : "text-accent-amber"}`}>{currentRate}</div>
                     </div>
                     <div className="w-px bg-border my-1" />
                     <div className="flex-1 text-center">
-                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg/hour</div>
+                      <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "ממוצע/שעה" : "Avg/hour"}</div>
                       <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">{baseline}</div>
                     </div>
                   </div>
@@ -304,15 +317,15 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             })()}
 
             {activePanels.has("multi_city_correlation") && (
-              <AnalyticsCard title="Multi-Region Events" badge={{ label: `${analytics.multi_city_correlation.multiRegionCount} events`, direction: "neutral" }}>
+              <AnalyticsCard title={isHe ? "אירועים רב-אזוריים" : "Multi-Region Events"} methodology={METHODOLOGIES.multi_city_correlation} badge={{ label: `${analytics.multi_city_correlation.multiRegionCount} ${isHe ? "אירועים" : "events"}`, direction: "neutral" }}>
                 <div className="flex gap-2 px-4 py-3">
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">3+ region events</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "אירועי 3+ אזורים" : "3+ region events"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-red tracking-tight">{analytics.multi_city_correlation.multiRegionCount}</div>
                   </div>
                   <div className="w-px bg-border my-1" />
                   <div className="flex-1 text-center">
-                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">Avg regions/event</div>
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">{isHe ? "ממוצע אזורים/אירוע" : "Avg regions/event"}</div>
                     <div className="font-mono text-2xl font-bold text-accent-amber tracking-tight">{analytics.multi_city_correlation.avgRegions}</div>
                   </div>
                 </div>
@@ -323,13 +336,13 @@ export function AnalyticsView({ alerts, cityCoords, regionId }: AnalyticsViewPro
             )}
 
             {activePanels.has("geographic_spread") && (
-              <AnalyticsCard title="Geographic Spread" badge={{ label: `${analytics.geographic_spread.avgRegionsPerGroup} avg`, direction: "neutral" }}>
+              <AnalyticsCard title={isHe ? "פיזור גיאוגרפי" : "Geographic Spread"} methodology={METHODOLOGIES.geographic_spread} badge={{ label: `${analytics.geographic_spread.avgRegionsPerGroup} ${isHe ? "ממוצע" : "avg"}`, direction: "neutral" }}>
                 <div className="px-4 py-3 text-center">
                   <div className="font-mono text-3xl font-bold text-accent-blue tracking-tight mb-1">
                     {analytics.geographic_spread.avgRegionsPerGroup}
                   </div>
-                  <div className="text-[10px] text-text-tertiary">avg regions per alert group</div>
-                  <div className="text-[10px] text-text-tertiary mt-1">{analytics.geographic_spread.totalGroups} total alert groups</div>
+                  <div className="text-[10px] text-text-tertiary">{isHe ? "ממוצע אזורים לקבוצת התרעה" : "avg regions per alert group"}</div>
+                  <div className="text-[10px] text-text-tertiary mt-1">{analytics.geographic_spread.totalGroups} {isHe ? "קבוצות התרעה" : "total alert groups"}</div>
                 </div>
               </AnalyticsCard>
             )}
