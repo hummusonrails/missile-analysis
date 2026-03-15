@@ -14,7 +14,14 @@ export class WebLLMEngine implements AIEngine {
   private engine: any = null;
 
   static detect(): boolean {
-    return typeof navigator !== "undefined" && "gpu" in navigator;
+    if (typeof navigator === "undefined" || !("gpu" in navigator)) return false;
+    // iOS Safari exposes navigator.gpu but can't handle LLM inference —
+    // the memory pressure crashes the tab. Fall through to wllama instead.
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document)) {
+      return false;
+    }
+    return true;
   }
 
   async init(): Promise<void> {

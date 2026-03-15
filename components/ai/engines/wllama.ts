@@ -10,6 +10,12 @@ const WASM_CONFIG = {
   "multi-thread/wllama.wasm": `${WLLAMA_CDN}multi-thread/wllama.wasm`,
 };
 
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+}
+
 export class WllamaEngine implements AIEngine {
   readonly id: EngineId = "wllama";
   readonly name = "Wllama (SmolLM 135M)";
@@ -57,9 +63,17 @@ export class WllamaEngine implements AIEngine {
     try {
       const { Wllama } = await import("@wllama/wllama");
 
-      this.wllama = new Wllama(WASM_CONFIG);
+      const mobile = isIOS();
+      // On iOS, only provide single-thread WASM to avoid SharedArrayBuffer issues
+      const pathConfig = mobile
+        ? { "single-thread/wllama.wasm": `${WLLAMA_CDN}single-thread/wllama.wasm` }
+        : WASM_CONFIG;
+      this.wllama = new Wllama(pathConfig);
 
       await this.wllama.loadModelFromUrl(MODEL_URL, {
+        // Smaller context on iOS to reduce memory pressure
+        n_ctx: mobile ? 512 : 2048,
+        n_threads: mobile ? 1 : undefined,
         progressCallback: ({ loaded, total }: { loaded: number; total: number }) => {
           if (total > 0) {
             this.downloadProgress = Math.round((loaded / total) * 100);
@@ -92,7 +106,7 @@ export class WllamaEngine implements AIEngine {
 
     // Wllama may not support true streaming — get full result and simulate word-by-word
     const result: string = await this.wllama.createCompletion(chatMLPrompt, {
-      nPredict: 256,
+      nPredict: isIOS() ? 128 : 256,
       stopTokens: [],
       sampling: {
         temp: 0.7,
