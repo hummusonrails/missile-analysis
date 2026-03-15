@@ -12,7 +12,7 @@ The app fetches real-time alert data from the Pikud HaOref (Home Front Command) 
 GitHub Actions (every 5 min)
   → Polls api.tzevaadom.co.il/alerts-history
   → Deduplicates & stores in Turso
-  → Computes analytics cache (177 entries)
+  → Computes analytics cache (188 entries across 16 regions)
 
 Next.js App (Vercel)
   → Static pages + 4 API routes
@@ -40,18 +40,27 @@ Porkbun → Domain registrar (sirenwise.com)
 - Threat levels: 0=Rockets, 2=Infiltration, 3=Earthquake, 5=Hostile Aircraft, 7=Non-conventional Missile, 8=General Alert
 
 ### City geocoding
-- ~1,363 city names from the API, ~994 successfully geocoded via Nominatim
-- ~440 cities couldn't be geocoded (compound names, alternate spellings)
-- Alerts with unknown cities still appear in stats and feed, just not on the map
-- The stats bar shows "X shown on map, Y without coordinates" to explain the discrepancy
-- Rate limit: 1 request/second to Nominatim, needs proper User-Agent header
+- 1,440 cities mapped with coordinates and region IDs — **100% alert coverage**
+- Initial seed used Nominatim (got ~994), then filled remaining 446 from Tzofar's official database at `https://www.tzevaadom.co.il/static/cities.json` which has lat/lng/area for every city in Pikud HaOref's system
+- Use `scripts/fill-missing-cities.ts` to fill gaps — maps Tzofar area codes to our region IDs
+- 16 regions: the original 15 from best-time-ui plus Yehuda v'Shomron (Judea & Samaria)
+- The Tzofar cities JSON also provides English names, area codes (mapped to regions), and countdown times
 
 ### Analytics
 - Analytics are computed client-side from filtered alerts (not pre-computed server-side) so they respond to time range and region filters
 - Shabbat detection: Friday 18:00 through Saturday 21:00 Israel time
 - Day-of-week comparisons must be normalized by actual count of each weekday in the range
 - Shabbat multiplier uses per-day averages (not raw counts or per-hour rates)
+- Time-between-alerts uses **event groups** (group_id), not individual alerts — otherwise simultaneous multi-city alerts create artificial 0-minute gaps
+- Quiet/active periods also use event-level timestamps (30-min threshold for "active barrage")
 - All times use `Asia/Jerusalem` timezone via `toLocaleString`
+- Each analytics card has an (i) info icon opening a methodology modal with data science explanations in EN/HE
+- 11 analytics panels: Shabbat, Hourly, AM/PM, Day of Week, Alert Types, Time Between Alerts, Quiet/Active, Monthly Trends, Escalation, Multi-Region, Geographic Spread
+
+### Accessibility
+- Text contrast meets WCAG AA: secondary (#8B9BB5, ~5.5:1) and tertiary (#637085, ~4.5:1) on dark bg (#0B0E14)
+- Borders at 10%/18% opacity for visibility
+- All interactive elements have sufficient touch targets for mobile
 
 ### CSP (Content Security Policy)
 - GoatCounter needs BOTH `gc.zgo.at` in `script-src` AND `*.goatcounter.com` in `connect-src`
@@ -107,7 +116,8 @@ components/
     BottomSheet.tsx   — Alert detail sheet on marker tap
   analytics/
     AnalyticsView.tsx — Panel orchestrator with all 11 analytics inline
-    AnalyticsCard.tsx — Reusable card wrapper
+    AnalyticsCard.tsx — Reusable card wrapper with methodology info icon
+    MethodologyModal.tsx — Modal explaining data science methodology per panel
     charts/           — MiniBarChart, DonutChart, SparkLine, ComparisonBar, StatRow
     panels/           — Individual panel components (now mostly unused — inlined in AnalyticsView)
   feed/
@@ -119,6 +129,7 @@ lib/
   db.ts              — Server-side Turso client factory (@libsql/client/http)
   types.ts           — Shared types (Alert, CityCoord, FilterState, etc.)
   i18n.tsx           — I18nProvider, useI18n hook, EN/HE translations
+  methodology.ts     — Data science methodology explanations per panel (EN/HE)
   turso-cache.ts     — Client-side fetch layer with 60s TTL cache
   hooks/
     use-alerts.ts     — useAlerts (map) + useAlertFeed (infinite scroll)
@@ -130,7 +141,8 @@ lib/
 scripts/
   setup-db.ts        — Creates Turso tables (alerts, analytics_cache, city_coords)
   extract-cities.ts  — Extracts city name mappings from best-shower-time
-  seed-cities.ts     — Geocodes cities via Nominatim, inserts into Turso
+  seed-cities.ts     — Geocodes cities via Nominatim, inserts into Turso (initial seed)
+  fill-missing-cities.ts — Fills gaps using Tzofar's official city database with coordinates
   import-historical.ts — Imports last 2 weeks from tzevaadom.co.il/static/historical/all.json
   render-og.ts       — Renders OG image from HTML template via Puppeteer
   og-template.html   — OG image HTML template
