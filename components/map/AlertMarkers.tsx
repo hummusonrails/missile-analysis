@@ -12,14 +12,7 @@ interface AlertMarkersProps {
   onAlertSelect: (alert: Alert) => void;
 }
 
-export const THREAT_COLORS: Record<number, string> = {
-  0: "#EF4444",  // Rockets — Red
-  2: "#3B82F6",  // Infiltration — Blue
-  3: "#10B981",  // Earthquake — Green
-  5: "#F59E0B",  // Hostile Aircraft — Amber
-  7: "#8B5CF6",  // Non-conventional — Purple
-  8: "#6B7280",  // General — Gray
-};
+import { THREAT_COLORS } from "../../lib/threat-colors";
 
 function getMarkerStyle(timestamp: number, threat: number): { color: string; radius: number; opacity: number; glow: boolean } {
   const ageMs = Date.now() - timestamp;

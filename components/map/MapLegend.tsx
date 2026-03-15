@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "../../lib/i18n";
-import { THREAT_COLORS } from "./AlertMarkers";
+import { THREAT_COLORS } from "../../lib/threat-colors";
 
 const THREAT_LABELS: Record<number, string> = {
   0: "threat.type.rockets",
