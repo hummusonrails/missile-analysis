@@ -70,16 +70,17 @@ async def create_tables():
     await _execute_write(stmts)
 
 
-async def insert_api_key(key: str, email: str, credits: int = 1000):
-    """Insert a new API key (stored as SHA-256 hash)."""
+async def insert_api_key(key: str, email: str, session_id: str = "", credits: int = 1000):
+    """Insert a new API key (stored as SHA-256 hash). session_id provides idempotency."""
     stmt = {
-        "sql": "INSERT INTO api_keys (key_hash, key_prefix, owner_email, credits_remaining, created_at) VALUES (?, ?, ?, ?, ?)",
+        "sql": "INSERT INTO api_keys (key_hash, key_prefix, owner_email, credits_remaining, created_at, stripe_session_id) VALUES (?, ?, ?, ?, ?, ?)",
         "args": [
             {"type": "text", "value": hash_api_key(key)},
             {"type": "text", "value": make_key_prefix(key)},
             {"type": "text", "value": email},
             {"type": "integer", "value": str(credits)},
             {"type": "integer", "value": str(int(time.time() * 1000))},
+            {"type": "text", "value": session_id},
         ],
     }
     await _execute_write([stmt])
