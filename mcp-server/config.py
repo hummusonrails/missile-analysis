@@ -1,6 +1,14 @@
 """Constants for SirenWise MCP server."""
 
-DEFAULT_CITY = "מודיעין-מכבים-רעות"
+# Pikud HaOref uses shelter zone names, not municipality names.
+# Modi'in Maccabim Reut has multiple zones in the alert system.
+DEFAULT_CITY_ZONES = [
+    "מודיעין מכבים רעות",
+    "מודיעין - ליגד סנטר",
+    "מודיעין - ישפרו סנטר",
+    "אזור תעשייה חבל מודיעין שוהם",
+]
+DEFAULT_CITY = DEFAULT_CITY_ZONES  # Used as list filter by default
 
 NIGHT_START = 22  # 10 PM
 NIGHT_END = 6     # 6 AM
