@@ -1,10 +1,4 @@
-# mcp-server/payments.py
-"""Payment access control for SirenWise MCP server.
-
-Handles dual-mode auth:
-- Localhost (Poke tunnel): free pass
-- External (via Caddy): requires API key or payment
-"""
+"""Payment access control for SirenWise MCP server."""
 import logging
 import os
 import time
@@ -16,21 +10,17 @@ import db_write
 
 logger = logging.getLogger(__name__)
 
-# In-memory rate limiting (resets on restart, acceptable at this scale)
 _rate_counters: dict[str, list[float]] = defaultdict(list)
-RATE_LIMIT_PER_KEY = 100  # requests per minute
-RATE_LIMIT_PER_IP = 30    # requests per minute (keyless)
+RATE_LIMIT_PER_KEY = 100
+RATE_LIMIT_PER_IP = 30
 
 
 def sanitize_error(message: str, is_ext: bool) -> str:
-    """Sanitize error messages for external requests."""
     if not is_ext:
-        return message  # Localhost gets detailed errors
-    # Map specific errors to generic ones
+        return message
     if "rate limit" in message.lower():
         return "Rate limit exceeded"
-    if ("authentication" in message.lower() or "unauthorized" in message.lower()
-            or "api key" in message.lower() or "invalid" in message.lower()):
+    if "authentication" in message.lower() or "unauthorized" in message.lower():
         return "Authentication failed"
     return "Request failed"
 
