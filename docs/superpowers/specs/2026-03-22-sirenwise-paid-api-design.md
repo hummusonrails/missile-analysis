@@ -95,32 +95,48 @@ Uses MPP's HTTP 402 challenge-response flow.
 
 ### Modified files
 
-**`mcp-server/server.py`** — Replace `validate_api_key()` with `payments.check_access()` in each tool function. Add detection of request origin (localhost vs external).
+**`mcp-server/server.py`** — Replace `validate_api_key()` with `payments.check_access()` in each tool function. Switch from `mcp.run()` to ASGI export via `mcp.http_app()` wrapped in a Starlette app with MPP middleware. Run with uvicorn directly: `uvicorn server:app --host 127.0.0.1 --port 8001`. The systemd ExecStart changes accordingly. The `/health` endpoint is mounted on the same Starlette app.
 
 ### New files
 
 **`mcp-server/payments.py`** — Payment orchestrator:
-- `check_access(tool_name: str) -> None` — checks all payment paths in priority order, raises if none valid
-- `is_localhost() -> bool` — checks if request is from 127.0.0.1 (Poke tunnel)
-- `validate_api_key(token: str) -> bool` — checks Turso `api_keys` table, verifies credit balance > 0
-- `decrement_credit(key: str)` — decrements credit balance
+- `check_access(tool_name: str) -> None` — checks all payment paths in priority order, raises if none valid. Uses `get_http_request()` from `fastmcp.server.dependencies` internally to access headers.
+- `is_external() -> bool` — checks if `X-Caddy-Secret` header matches `CADDY_INTERNAL_SECRET` env var. If absent → localhost (Poke). If present and matches → external (paid). If present and wrong → reject.
+- `validate_api_key(token: str) -> bool` — checks Turso `api_keys` table, verifies credit balance > 0 and `revoked_at` is null
+- `decrement_credit(key: str)` — atomic decrement: `UPDATE api_keys SET credits_remaining = credits_remaining - 1 WHERE key = ? AND credits_remaining > 0`. Checks rows affected; if 0, key is exhausted.
 - `log_usage(key_or_wallet: str, tool: str, method: str)` — inserts into `usage_log`
 
+**`mcp-server/db_write.py`** — Write operations (separate from read-only `db.py`):
+- Uses `TURSO_WRITE_TOKEN` env var (separate from `TURSO_READ_TOKEN`)
+- Functions: `insert_api_key()`, `decrement_credit()`, `log_usage()`, `revoke_key()`
+- Keeps `db.py` read-only for alert queries
+
 **`mcp-server/x402_handler.py`** — x402 integration:
-- Wraps each tool with `x402.mcp.create_payment_wrapper_sync`
+- Uses `x402.mcp.create_payment_wrapper_sync` to wrap each tool function
+- The wrapper intercepts the tool call, checks for `_meta["x402/payment"]` in the JSON-RPC request
+- If absent: returns `CallToolResult(isError=True)` with payment requirements in `structuredContent`
+- If present: verifies via CDP facilitator, calls the wrapped function, settles payment, returns result with `_meta["x402/payment-response"]`
 - Configures: scheme=exact, network=eip155:8453, price=$0.01, pay_to=EVM_PAY_TO_ADDRESS
 - Uses Coinbase CDP facilitator for verify + settle
 
+**x402 + FastMCP integration pattern:** The `create_payment_wrapper_sync` wraps the Python function itself (decorator pattern), not the HTTP layer. FastMCP passes `_meta` through to the tool context. The wrapper checks the context for payment data before executing the wrapped function. If FastMCP does not expose `_meta` in the tool function signature, an alternative approach is to use ASGI middleware at the HTTP level (via `PaymentMiddlewareASGI`) with a single route config for `POST /mcp`, where the price applies to all tool calls uniformly ($0.01 flat rate makes this viable).
+
 **`mcp-server/mpp_handler.py`** — MPP integration:
-- Handles 402 challenge generation
-- Verifies MPP credentials
-- Supports Stripe and Tempo payment methods
+- Handles MPP payment verification at the ASGI middleware level
+- Since MPP uses HTTP 402 responses but MCP uses JSON-RPC over HTTP, the middleware must intercept the raw HTTP request BEFORE FastMCP processes it:
+  1. Check for `Authorization: MPP <credential>` header on incoming POST to `/mcp`
+  2. If credential present and valid → pass through to FastMCP normally
+  3. If no credential and no other valid auth → return HTTP 402 with `WWW-Authenticate: MPP` header and JSON payment challenge body (this happens before FastMCP serializes a JSON-RPC response)
+- This requires the server to use `mcp.http_app()` ASGI export (not `mcp.run()`) so the MPP middleware can wrap the ASGI app
+- Supports Stripe (card payments) and Tempo (stablecoin) methods
+- **Risk note:** `pympp` Python SDK is early-stage. If it proves unusable, Phase 3 can implement the MPP 402 protocol manually (it's a simple HTTP challenge-response pattern) or use a TypeScript sidecar via `mppx`
 
 ### New Turso tables
 
 ```sql
 CREATE TABLE api_keys (
-    key TEXT PRIMARY KEY,
+    key_hash TEXT PRIMARY KEY,        -- SHA-256 of the actual key (never store plaintext)
+    key_prefix TEXT NOT NULL,         -- First 8 chars of key (e.g. 'sw_abc12') for identification in logs
     owner_email TEXT NOT NULL,
     credits_remaining INTEGER NOT NULL DEFAULT 1000,
     created_at INTEGER NOT NULL,
@@ -141,6 +157,7 @@ CREATE TABLE usage_log (
 | Variable | Purpose |
 |----------|---------|
 | `TURSO_WRITE_TOKEN` | Read-write token for api_keys + usage_log |
+| `CADDY_INTERNAL_SECRET` | Shared secret for Caddy→server dual-mode detection |
 | `COINBASE_CDP_API_KEY` | x402 facilitator authentication |
 | `EVM_PAY_TO_ADDRESS` | Wallet address to receive USDC on Base |
 | `STRIPE_SECRET_KEY` | MPP Stripe payment processing |
@@ -183,12 +200,15 @@ Standalone page at `/developer`. Does NOT use AppShell/TabBar. English-only. Own
 
 **`app/api/developer/webhook/route.ts`** — POST: Stripe webhook
 - Listens for `checkout.session.completed`
-- Generates API key (`crypto.randomUUID()` + prefix `sw_`)
-- Inserts into Turso `api_keys` table with 1,000 credits
-- Stores key in Stripe session metadata for retrieval
+- Generates API key: `sw_` + `crypto.randomBytes(32).toString('base64url')` (256 bits entropy)
+- Stores SHA-256 hash of the key in Turso `api_keys` table (never plaintext). If DB leaks, keys are not usable.
+- Inserts with 1,000 credits
+- Stores the plaintext key in Stripe session metadata for one-time retrieval on success page
 
-**`app/developer/success/page.tsx`** — Success page
-- Retrieves session from Stripe using `session_id` query param
+**`app/developer/success/page.tsx`** — Success page (server component)
+- Retrieves Stripe session using `session_id` query param via Stripe API
+- Verifies payment status is `paid` (does not rely on webhook having fired)
+- If paid and key not yet created: generates key synchronously and inserts into Turso (idempotent — checks if key already exists for this session)
 - Displays API key one time with copy button
 - Shows quick start instructions
 
@@ -229,28 +249,42 @@ mcp.sirenwise.com {
     reverse_proxy 127.0.0.1:8001 {
         header_up Host {host}
         header_up X-Forwarded-For {remote_host}
+        header_up X-Caddy-Secret {env.CADDY_INTERNAL_SECRET}
     }
 }
 ```
 
-The `X-Forwarded-For` header lets the server distinguish external requests from localhost (Poke tunnel).
+Caddy injects `X-Caddy-Secret` on every proxied request. The server uses this to distinguish external (paid) from localhost (Poke, free). The secret is shared between Caddy and the server via environment variable.
 
 ### Server dual-mode detection
 
-The server checks the request source:
-- `127.0.0.1` or no `X-Forwarded-For` → localhost (Poke tunnel) → free pass
-- Any `X-Forwarded-For` present → external (via Caddy) → requires payment/key
+The Poke tunnel connects directly to `127.0.0.1:8001` (bypasses Caddy). External clients connect via Caddy to `mcp.sirenwise.com`. To distinguish:
+
+1. Caddy injects a secret header: `X-Caddy-Secret: <shared-secret>` (stored as `CADDY_INTERNAL_SECRET` env var on VPS)
+2. The server checks `get_http_request()`:
+   - If `X-Caddy-Secret` matches the env var → external request → requires payment/key
+   - If `X-Caddy-Secret` is absent → localhost (Poke tunnel) → free pass
+   - If `X-Caddy-Secret` is present but wrong → reject (spoofing attempt)
+
+This is unspoofable because external clients can never reach port 8001 directly (it binds to 127.0.0.1). Only Caddy and the Poke tunnel can connect.
+
+**Note:** Cloudflare DNS for `mcp.sirenwise.com` should be set to **DNS-only** (not proxied) so Caddy handles TLS directly and gets the real client IP.
 
 ## Security Hardening
 
-1. **Dual auth mode** — localhost = free, external = paid. Based on `X-Forwarded-For` header (only Caddy sets this; direct localhost connections don't have it)
+1. **Dual auth mode** — localhost = free, external = paid. Based on `X-Caddy-Secret` header (shared secret between Caddy and server; unspoofable because port 8001 binds to 127.0.0.1)
 2. **Input validation** — city/region params validated against `city_coords` table. Unknown values return a helpful error listing valid options.
-3. **Rate limiting** — per API key: 100 req/min. Per IP (keyless x402/MPP): 30 req/min. Implemented in Python with in-memory counters.
+3. **Rate limiting** — per API key: 100 req/min. Per IP (keyless x402/MPP): 30 req/min. Implemented in Python with in-memory counters. Counters reset on restart (acceptable at this scale).
 4. **Error sanitization** — external requests get generic errors. Localhost gets detailed errors.
 5. **Request logging** — all external requests logged to `usage_log`
-6. **API key revocation** — revoked keys (non-null `revoked_at`) rejected immediately
-7. **Token isolation** — read-only token for alerts, separate write token for keys/usage. Write token only on VPS and Vercel (for key generation), never exposed to clients.
-8. **HTTPS only** — Caddy auto-TLS for `mcp.sirenwise.com`
+6. **API key hashing** — keys stored as SHA-256 hashes in Turso, never plaintext. If DB leaks, keys are not usable.
+7. **API key revocation** — revoked keys (non-null `revoked_at`) rejected immediately
+8. **Atomic credit decrement** — `UPDATE ... SET credits_remaining = credits_remaining - 1 WHERE key_hash = ? AND credits_remaining > 0` prevents race condition overdraw
+9. **Token isolation** — `db.py` uses `TURSO_READ_TOKEN` for alerts. `db_write.py` uses `TURSO_WRITE_TOKEN` for keys/usage. Write token only on VPS and Vercel, never exposed to clients.
+10. **HTTPS only** — Caddy auto-TLS for `mcp.sirenwise.com`. Cloudflare DNS set to DNS-only (no proxy) so Caddy handles TLS directly.
+11. **Stripe webhook verification** — webhook handler verifies Stripe signature via `stripe.webhooks.constructEvent()` using `STRIPE_WEBHOOK_SECRET`
+12. **Health endpoint** — `/health` on `mcp.sirenwise.com` remains accessible without auth for monitoring (returns Turso connectivity status only, no sensitive data)
+13. **No CORS** — `mcp.sirenwise.com` is for server-side MCP clients only, not browser-based. No CORS headers needed.
 
 ## Poke Impact
 
