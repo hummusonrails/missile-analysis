@@ -6,7 +6,7 @@
  * Requires stablecoins on Tempo mainnet in the wallet ($0.01 per request).
  */
 
-import Mppx from "mppx";
+import { Mppx, tempo } from "mppx/client";
 
 const PRIVATE_KEY = process.argv[2];
 if (!PRIVATE_KEY) {
@@ -20,15 +20,13 @@ const MCP_URL = "https://mcp.sirenwise.com/mcp";
 console.log("Calling MCP tool with MPP payment...\n");
 
 try {
-  // mppx.fetch handles the 402 challenge-response flow automatically
   const mppxClient = Mppx.create({
     methods: [
-      {
-        name: "tempo",
+      tempo({
         privateKey: PRIVATE_KEY,
-        chainId: 4217, // Tempo mainnet
+        chainId: 4217,
         rpcUrl: "https://rpc.tempo.xyz",
-      },
+      }),
     ],
   });
 
