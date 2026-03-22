@@ -52,15 +52,16 @@ const response = await paidFetch("https://mcp.sirenwise.com/mcp", {
   }),
 });`;
 
-const MPP_CODE = `import Mppx from "mppx";
+const MPP_CODE = `import { Mppx, tempo } from "mppx/client";
 
 const client = Mppx.create({
-  methods: [{
-    name: "tempo",
-    privateKey: process.env.TEMPO_PRIVATE_KEY,
-    chainId: 4217,
-    rpcUrl: "https://rpc.tempo.xyz",
-  }],
+  methods: [
+    tempo({
+      privateKey: process.env.TEMPO_PRIVATE_KEY,
+      chainId: 42431, // Tempo testnet (Moderato)
+      rpcUrl: "https://rpc.moderato.tempo.xyz",
+    }),
+  ],
 });
 
 const response = await client.fetch("https://mcp.sirenwise.com/mcp", {
@@ -73,6 +74,19 @@ const response = await client.fetch("https://mcp.sirenwise.com/mcp", {
     id: 1,
   }),
 });`;
+
+const MPP_CLI_CODE = `# Create a wallet (keys stored in macOS keychain)
+npx mppx account create --account my-app
+
+# Fund it with testnet tokens
+npx mppx account fund --account my-app
+
+# Make a paid request
+npx mppx "https://mcp.sirenwise.com/mcp" \\
+  --method POST --account my-app \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json, text/event-stream" \\
+  --data '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_streak","arguments":{"city":"Beer Sheva"}},"id":1}'`;
 
 export default function DeveloperPage() {
   const [openModal, setOpenModal] = useState<ModalId>(null);
@@ -290,7 +304,7 @@ export default function DeveloperPage() {
 
         <div className="flex gap-3">
           <a
-            href="https://docs.x402.org"
+            href="https://www.x402.org"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-accent-amber hover:underline"
@@ -342,8 +356,15 @@ export default function DeveloperPage() {
           </pre>
         </div>
 
+        <div className="mb-4">
+          <p className="text-xs text-text-tertiary mb-1.5">CLI (quickest way to test)</p>
+          <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-3 rounded-lg overflow-x-auto leading-relaxed">
+            {MPP_CLI_CODE}
+          </pre>
+        </div>
+
         <div className="mb-5">
-          <p className="text-xs text-text-tertiary mb-1.5">Integration example</p>
+          <p className="text-xs text-text-tertiary mb-1.5">SDK integration</p>
           <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-3 rounded-lg overflow-x-auto leading-relaxed">
             {MPP_CODE}
           </pre>
@@ -352,11 +373,14 @@ export default function DeveloperPage() {
         <div className="mb-5 bg-bg-primary rounded-lg px-4 py-3 text-xs space-y-1">
           <p className="text-text-tertiary font-medium mb-1.5">Network</p>
           <p className="text-text-secondary">
-            <span className="text-text-tertiary">Chain:</span> Tempo Mainnet (Chain ID: 4217)
+            <span className="text-text-tertiary">Chain:</span> Tempo Testnet / Moderato (Chain ID: 42431)
           </p>
           <p className="text-text-secondary">
             <span className="text-text-tertiary">RPC:</span>{" "}
-            <code className="text-accent-green text-[11px]">https://rpc.tempo.xyz</code>
+            <code className="text-accent-green text-[11px]">https://rpc.moderato.tempo.xyz</code>
+          </p>
+          <p className="text-text-secondary">
+            <span className="text-text-tertiary">Token:</span> PathUSD (testnet stablecoin)
           </p>
         </div>
 
