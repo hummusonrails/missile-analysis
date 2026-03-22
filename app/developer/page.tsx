@@ -232,14 +232,17 @@ export default function DeveloperPage() {
             <pre className="text-xs font-mono text-text-secondary bg-bg-surface px-3 py-2 rounded overflow-x-auto">
 {`Authorization: Bearer sw_your_api_key_here`}
             </pre>
+            <a href="https://gist.github.com/hummusonrails/fd0ed45d51c6a66f24c48fc7ec72bec0" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-blue hover:underline mt-1 inline-block">Test script →</a>
           </div>
           <div>
             <p className="text-xs text-text-tertiary mb-1">x402 (Arbitrum USDC):</p>
             <p className="text-xs text-text-secondary">No API key needed — <code className="text-accent-amber">@x402/fetch</code> handles payment automatically via the 402 protocol.</p>
+            <a href="https://gist.github.com/hummusonrails/3174e29f5ff705aa156c15ce7a9a3ad6" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-amber hover:underline mt-1 inline-block">Test script →</a>
           </div>
           <div>
             <p className="text-xs text-text-tertiary mb-1">MPP (Tempo):</p>
             <p className="text-xs text-text-secondary">No API key needed — <code className="text-accent-green">mppx</code> handles payment via the Machine Payments Protocol.</p>
+            <a href="https://gist.github.com/hummusonrails/c06c26adf07f90b2e242c5cdc2169ab9" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-green hover:underline mt-1 inline-block">Test script →</a>
           </div>
         </div>
       </div>
@@ -302,7 +305,15 @@ export default function DeveloperPage() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="https://gist.github.com/hummusonrails/3174e29f5ff705aa156c15ce7a9a3ad6"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-amber hover:underline"
+          >
+            Ready-to-run test script →
+          </a>
           <a
             href="https://www.x402.org"
             target="_blank"
@@ -384,7 +395,15 @@ export default function DeveloperPage() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="https://gist.github.com/hummusonrails/c06c26adf07f90b2e242c5cdc2169ab9"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-green hover:underline"
+          >
+            Ready-to-run test script →
+          </a>
           <a
             href="https://mpp.dev"
             target="_blank"

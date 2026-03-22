@@ -1,35 +1,40 @@
 #!/usr/bin/env node
 /**
- * Test 3: MPP Pay-per-request via Tempo stablecoins
+ * SirenWise API — Test with MPP (Tempo stablecoins)
  *
- * Uses the mppx CLI — keys stored in macOS keychain.
- * Requires a funded mppx account.
- *
- * Usage: node test-mpp.mjs [account-name]
- * Default: "sirenwise-main"
+ * Pay per request via the Machine Payments Protocol (Stripe + Tempo).
+ * Uses the mppx CLI with keys stored in your macOS keychain.
  *
  * Setup:
- *   npx mppx account create --account sirenwise-main
- *   npx mppx account view --account sirenwise-main  (get address)
- *   Fund the address with USDC on Tempo mainnet
+ *   npm install
+ *   npx mppx account create --account <name>
+ *   npx mppx account fund --account <name>     (testnet tokens)
+ *
+ * Usage:  node test-mpp.mjs <account-name> [city]
  */
 
 import { execSync } from "child_process";
 
-const ACCOUNT = process.argv[2] || "sirenwise-main";
+const ACCOUNT = process.argv[2];
+if (!ACCOUNT) {
+  console.error("Usage: node test-mpp.mjs <account-name> [city]");
+  console.error("\nSetup:");
+  console.error("  npx mppx account create --account my-app");
+  console.error("  npx mppx account fund --account my-app");
+  process.exit(1);
+}
+
 const MCP_URL = "https://mcp.sirenwise.com/mcp";
+const CITY = process.argv[3] || "Beer Sheva";
 
 console.log(`Using mppx account: ${ACCOUNT}`);
-console.log("Calling MCP tool with MPP payment...\n");
+console.log(`Querying SirenWise for ${CITY} (paying via Tempo)...\n`);
 
 try {
   const body = JSON.stringify({
     jsonrpc: "2.0",
     method: "tools/call",
-    params: {
-      name: "get_streak",
-      arguments: { city: "Beer Sheva" },
-    },
+    params: { name: "get_streak", arguments: { city: CITY } },
     id: 1,
   });
 
@@ -38,12 +43,10 @@ try {
     { encoding: "utf-8", timeout: 60000, cwd: import.meta.dirname }
   );
 
-  console.log("✓ MPP response:\n");
+  console.log("✓ MPP payment successful\n");
   console.log(result);
 } catch (err) {
-  const stderr = err.stderr || "";
-  const stdout = err.stdout || "";
-  if (stdout) console.log("Output:", stdout);
-  if (stderr) console.error("Error:", stderr);
-  if (!stdout && !stderr) console.error("✗ MPP payment failed:", err.message);
+  const output = err.stdout || err.stderr || err.message;
+  console.error("✗ Payment failed:", output);
+  process.exit(1);
 }
