@@ -93,9 +93,9 @@ async def check_access(tool_name: str):
         return
 
     # x402 payment path — check for payment in MCP _meta
-    x402_payment = _extract_x402_payment(request)
-    if x402_payment is not None:
-        await _verify_and_settle_x402(x402_payment, tool_name)
+    x402_header = _extract_x402_payment_header(request)
+    if x402_header is not None:
+        await _verify_and_settle_x402(x402_header, tool_name)
         return
 
     # MPP payment path — check for payment in MCP _meta
@@ -113,75 +113,31 @@ async def check_access(tool_name: str):
     )
 
 
-def _extract_x402_payment(request) -> dict | None:
-    """Extract x402 payment payload from the HTTP header or MCP _meta.
+def _extract_x402_payment_header(request) -> str | None:
+    """Extract raw x402 payment header value.
 
-    The @x402/fetch client sends payment via the X-PAYMENT HTTP header
-    (base64-encoded JSON). MCP-native x402 clients may send it in
-    _meta["x402/payment"]. We check both.
+    The @x402/fetch client sends payment via X-PAYMENT or PAYMENT-SIGNATURE
+    HTTP headers. Returns the raw header string for Thirdweb's API.
     """
-    import base64
-
-    # Check HTTP header first (X-PAYMENT or PAYMENT-SIGNATURE)
     for header_name in ("x-payment", "payment-signature"):
         header_val = request.headers.get(header_name)
         if header_val:
-            try:
-                decoded = base64.b64decode(header_val)
-                return json.loads(decoded)
-            except Exception:
-                try:
-                    return json.loads(header_val)
-                except Exception:
-                    pass
-
-    # Check _meta in JSON-RPC body
-    try:
-        body = getattr(request, "_body", None)
-        if body is None:
-            return None
-        if isinstance(body, (bytes, bytearray)):
-            body = body.decode()
-        data = json.loads(body)
-        meta = data.get("params", {}).get("_meta", {}) or {}
-        payment = meta.get("x402/payment")
-        if payment:
-            return payment if isinstance(payment, dict) else json.loads(payment)
-    except Exception:
-        pass
+            return header_val
     return None
 
 
-async def _verify_and_settle_x402(payment_data: dict, tool_name: str) -> None:
-    """Verify and settle an x402 payment payload.
+async def _verify_and_settle_x402(payment_header: str, tool_name: str) -> None:
+    """Verify and settle an x402 payment via Thirdweb's REST API.
 
-    Raises ValueError with a user-facing message if payment is invalid.
-    Logs usage on success.
+    Args:
+        payment_header: Raw value from X-PAYMENT or PAYMENT-SIGNATURE header
+        tool_name: Name of the tool being called (for logging)
     """
     try:
         import x402_handler
-        from x402.schemas.payments import PaymentPayload
-
-        resource_server = await x402_handler.get_resource_server()
-        requirements = x402_handler.get_payment_requirements()
-
-        payload = PaymentPayload.model_validate(payment_data)
-
-        verify_result = await resource_server.verify_payment(payload, requirements)
-        if not verify_result.is_valid:
-            reason = verify_result.invalid_reason or "unknown"
-            logger.warning("x402 payment verification failed for %s: %s", tool_name, reason)
-            raise ValueError("Payment verification failed")
-
-        settle_result = await resource_server.settle_payment(payload, requirements)
-        if not settle_result.success:
-            reason = settle_result.error_reason or "unknown"
-            logger.warning("x402 payment settlement failed for %s: %s", tool_name, reason)
-            raise ValueError("Payment settlement failed")
-
+        await x402_handler.verify_and_settle(payment_header)
         logger.info("x402 payment settled for tool %s", tool_name)
         await db_write.log_usage("x402", tool_name, "x402")
-
     except ValueError:
         raise
     except Exception as exc:

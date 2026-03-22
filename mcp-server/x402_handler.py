@@ -1,156 +1,138 @@
 """x402 payment handler for SirenWise MCP server.
 
-Sets up the x402ResourceServer with the Thirdweb facilitator for Arbitrum One,
-and builds the USDC payment requirements used by payments.py.
+Uses Thirdweb's x402 facilitator REST API directly for payment verification
+and settlement on Arbitrum One. Does NOT use the generic x402 Python SDK's
+resource server (which doesn't support Thirdweb's API format).
 
-The resource server is created lazily on first use so that the module can be
-imported without an immediate network call to the facilitator.
+Thirdweb API:
+  POST https://api.thirdweb.com/v1/payments/x402/verify
+  POST https://api.thirdweb.com/v1/payments/x402/settle
+  Auth: x-secret-key header
 
 Network:     Arbitrum One — eip155:42161
 Token:       USDC on Arbitrum — 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
-Price:       $0.01 per request (10_000 USDC atomic units, 6 decimals)
-Facilitator: Thirdweb — https://x402.thirdweb.com
+Price:       $0.01 per request
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
-
 ARBITRUM_NETWORK = "eip155:42161"
+ARBITRUM_CHAIN_ID = 42161
 USDC_ARBITRUM_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
-
-# $0.01 expressed in USDC atomic units (6 decimals)
-PRICE_USDC_ATOMIC = "10000"  # 0.01 USDC
-
-# Thirdweb x402 facilitator base URL (verify/settle endpoints live under this root)
-THIRDWEB_FACILITATOR_URL = "https://x402.thirdweb.com"
-
-# Maximum seconds a signed payment authorisation is considered valid
+PRICE_USD = "$0.01"
+PRICE_USDC_ATOMIC = "10000"  # 0.01 USDC (6 decimals)
 MAX_TIMEOUT_SECONDS = 300
 
-# ---------------------------------------------------------------------------
-# Lazy-initialised singletons
-# ---------------------------------------------------------------------------
-
-_resource_server = None
-_payment_requirements = None
+THIRDWEB_API_BASE = "https://api.thirdweb.com"
+VERIFY_URL = f"{THIRDWEB_API_BASE}/v1/payments/x402/verify"
+SETTLE_URL = f"{THIRDWEB_API_BASE}/v1/payments/x402/settle"
 
 
 def _get_pay_to_address() -> str:
-    """Return the pay-to wallet address from env, raising if not set."""
     addr = os.environ.get("EVM_PAY_TO_ADDRESS", "").strip()
     if not addr:
-        raise RuntimeError(
-            "EVM_PAY_TO_ADDRESS env var is required for x402 payments. "
-            "Set it to an Arbitrum One wallet address."
-        )
+        raise RuntimeError("EVM_PAY_TO_ADDRESS env var is required")
     return addr
 
 
-async def get_resource_server():
-    """Return (or create) the singleton x402ResourceServer instance.
-
-    Calls initialize() which contacts the Thirdweb facilitator's /supported
-    endpoint to discover supported schemes and networks. This is required
-    for verify_payment/settle_payment to work correctly.
-    """
-    global _resource_server
-
-    if _resource_server is not None:
-        return _resource_server
-
-    from x402.server import x402ResourceServer
-    from x402.http.facilitator_client import HTTPFacilitatorClient, FacilitatorConfig
-    from x402.http.facilitator_client_base import AuthHeaders, AuthProvider
-    from x402.mechanisms.evm.exact import ExactEvmServerScheme
-
-    thirdweb_secret = os.environ.get("THIRDWEB_SECRET_KEY", "").strip()
-
-    if thirdweb_secret:
-        class _ThirdwebAuthProvider(AuthProvider):
-            def get_auth_headers(self) -> AuthHeaders:
-                auth = {"Authorization": f"Bearer {thirdweb_secret}"}
-                return AuthHeaders(verify=auth, settle=auth, supported=auth)
-
-        config = FacilitatorConfig(
-            url=THIRDWEB_FACILITATOR_URL,
-            auth_provider=_ThirdwebAuthProvider(),
-        )
-    else:
-        logger.warning(
-            "THIRDWEB_SECRET_KEY not set — x402 verify/settle requests to Thirdweb "
-            "will be unauthenticated and may be rejected."
-        )
-        config = FacilitatorConfig(url=THIRDWEB_FACILITATOR_URL)
-
-    facilitator = HTTPFacilitatorClient(config)
-
-    server = x402ResourceServer(facilitator)
-    server.register(ARBITRUM_NETWORK, ExactEvmServerScheme())
-
-    # initialize() calls the facilitator's /supported endpoint to populate
-    # _supported_responses, which verify_payment/settle_payment need.
-    await server.initialize()
-
-    _resource_server = server
-    logger.info(
-        "x402ResourceServer initialized (Thirdweb facilitator, %s)", ARBITRUM_NETWORK
-    )
-    return _resource_server
+def _get_thirdweb_secret() -> str:
+    key = os.environ.get("THIRDWEB_SECRET_KEY", "").strip()
+    if not key:
+        raise RuntimeError("THIRDWEB_SECRET_KEY env var is required")
+    return key
 
 
-def get_payment_requirements():
-    """Return (or build) the singleton PaymentRequirements for this server.
-
-    We construct requirements directly rather than via build_payment_requirements()
-    because that method requires the facilitator to have responded to /supported
-    with a matching SupportedKind for eip155:42161 — something we cannot guarantee
-    at startup without a blocking network call.
-
-    The extra fields (name, version) are EIP-712 domain parameters for USDC on
-    Arbitrum One, required by clients to construct the transfer authorisation
-    signature.
-    """
-    global _payment_requirements
-
-    if _payment_requirements is not None:
-        return _payment_requirements
-
-    from x402.schemas.payments import PaymentRequirements
-
-    pay_to = _get_pay_to_address()
-
-    _payment_requirements = PaymentRequirements(
-        scheme="exact",
-        network=ARBITRUM_NETWORK,
-        asset=USDC_ARBITRUM_ADDRESS,
-        amount=PRICE_USDC_ATOMIC,
-        pay_to=pay_to,
-        max_timeout_seconds=MAX_TIMEOUT_SECONDS,
-        extra={
-            # EIP-712 domain parameters for USDC on Arbitrum One
+def get_payment_requirements_dict() -> dict:
+    """Build the payment requirements dict for 402 responses."""
+    return {
+        "x402Version": 2,
+        "scheme": "exact",
+        "network": ARBITRUM_NETWORK,
+        "asset": USDC_ARBITRUM_ADDRESS,
+        "amount": PRICE_USDC_ATOMIC,
+        "payTo": _get_pay_to_address(),
+        "maxTimeoutSeconds": MAX_TIMEOUT_SECONDS,
+        "extra": {
             "name": "USD Coin",
             "version": "2",
         },
-    )
+    }
 
-    logger.info(
-        "x402 payment requirements built: %s USDC atomic units on %s, pay_to=%s",
-        PRICE_USDC_ATOMIC,
-        ARBITRUM_NETWORK,
-        pay_to,
-    )
-    return _payment_requirements
+
+async def verify_and_settle(payment_header: str) -> dict:
+    """Verify and settle an x402 payment via Thirdweb's API.
+
+    Args:
+        payment_header: Raw value from the X-PAYMENT or PAYMENT-SIGNATURE header
+
+    Returns:
+        Settlement result dict from Thirdweb
+
+    Raises:
+        ValueError if verification or settlement fails
+    """
+    secret = _get_thirdweb_secret()
+    pay_to = _get_pay_to_address()
+    reqs = get_payment_requirements_dict()
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-secret-key": secret,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Step 1: Verify the payment
+        verify_body = {
+            "x402Version": 2,
+            "paymentPayload": payment_header,
+            "paymentRequirements": reqs,
+        }
+        logger.info("Calling Thirdweb verify API...")
+        verify_resp = await client.post(VERIFY_URL, json=verify_body, headers=headers)
+
+        if verify_resp.status_code != 200:
+            error_text = verify_resp.text
+            logger.warning("x402 verify failed (%d): %s", verify_resp.status_code, error_text)
+            raise ValueError("Payment verification failed")
+
+        verify_result = verify_resp.json()
+        is_valid = verify_result.get("isValid", False)
+        if not is_valid:
+            reason = verify_result.get("invalidReason", "unknown")
+            logger.warning("x402 payment invalid: %s", reason)
+            raise ValueError("Payment verification failed")
+
+        logger.info("x402 payment verified successfully")
+
+        # Step 2: Settle the payment
+        settle_body = {
+            "x402Version": 2,
+            "paymentPayload": payment_header,
+            "paymentRequirements": reqs,
+        }
+        logger.info("Calling Thirdweb settle API...")
+        settle_resp = await client.post(SETTLE_URL, json=settle_body, headers=headers)
+
+        if settle_resp.status_code != 200:
+            error_text = settle_resp.text
+            logger.warning("x402 settle failed (%d): %s", settle_resp.status_code, error_text)
+            raise ValueError("Payment settlement failed")
+
+        settle_result = settle_resp.json()
+        tx_hash = settle_result.get("txHash", settle_result.get("transactionHash", ""))
+        logger.info("x402 payment settled: tx=%s", tx_hash)
+
+        return settle_result
 
 
 def reset_singletons() -> None:
-    """Reset cached singletons — used in tests to reinitialise with different env vars."""
-    global _resource_server, _payment_requirements
-    _resource_server = None
-    _payment_requirements = None
+    """No-op — kept for test compatibility."""
+    pass
