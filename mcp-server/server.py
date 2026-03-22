@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_request
 
 import db
 import payments
@@ -31,18 +32,33 @@ mcp = FastMCP(
     instructions="Alert analysis for Israel missile/rocket sirens. Tools provide daily context, sleep impact, clustering patterns, and quiet-day streaks. Default city: Modi'in Maccabim Reut.",
 )
 
+def _is_external_request() -> bool:
+    """Check if current request came via Caddy (external) vs localhost (Poke)."""
+    try:
+        request = get_http_request()
+        caddy_secret = request.headers.get("x-caddy-secret")
+        expected = os.environ.get("CADDY_INTERNAL_SECRET")
+        if not expected or not caddy_secret:
+            return False
+        return caddy_secret == expected
+    except Exception:
+        return False
+
+
 async def _resolve_filter(city, region_id, nationwide):
     """Resolve city/region/nationwide params into a cities_filter value.
 
-    Handles English city names from Poke (e.g. 'Modiin', 'Modi'in', 'Tel Aviv')
-    by looking up matching Hebrew zone names in city_coords.
+    External requests (paid API) default to nationwide when no city specified.
+    Localhost requests (Poke) default to Modi'in.
     """
     if nationwide:
         return None
     if region_id:
         return await db.fetch_cities_for_region(region_id)
     if not city:
-        return DEFAULT_CITY
+        if _is_external_request():
+            return None  # Nationwide for paid API
+        return DEFAULT_CITY  # Modi'in for personal Poke
     # Poke sends English names — resolve to Hebrew zone names
     resolved = await db.resolve_city_name(city)
     logger.info(f"Resolved city '{city}' to {resolved}")
