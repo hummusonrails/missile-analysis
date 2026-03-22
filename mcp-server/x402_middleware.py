@@ -77,7 +77,7 @@ class X402PaymentMiddleware:
             reqs = x402_handler.get_payment_requirements()
 
             # Encode payment requirements as base64 JSON (x402 v2 format)
-            reqs_dict = {
+            single_req = {
                 "x402Version": 2,
                 "scheme": reqs.scheme,
                 "network": reqs.network,
@@ -87,19 +87,21 @@ class X402PaymentMiddleware:
                 "maxTimeoutSeconds": reqs.max_timeout_seconds,
                 "extra": reqs.extra or {},
             }
-            reqs_json = json.dumps(reqs_dict)
-            reqs_b64 = base64.b64encode(reqs_json.encode()).decode()
+
+            # Full PaymentRequired object (what @x402/fetch reads)
+            payment_required = {
+                "x402Version": 2,
+                "accepts": [single_req],
+            }
+            pr_json = json.dumps(payment_required)
+            pr_b64 = base64.b64encode(pr_json.encode()).decode()
 
             headers = [
                 (b"content-type", b"application/json"),
-                (b"x-payment-required", reqs_b64.encode()),
-                (b"payment-required", reqs_b64.encode()),
+                (b"x-payment-required", pr_b64.encode()),
+                (b"payment-required", pr_b64.encode()),
             ]
-            body = json.dumps({
-                "x402Version": 2,
-                "error": "Payment Required",
-                "accepts": [reqs_dict],
-            }).encode()
+            body = pr_json.encode()
 
         except Exception as exc:
             logger.warning("Failed to build x402 payment requirements: %s", exc)
