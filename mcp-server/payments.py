@@ -114,16 +114,31 @@ async def check_access(tool_name: str):
 
 
 def _extract_x402_payment(request) -> dict | None:
-    """Extract x402 payment payload from the raw MCP JSON-RPC body.
+    """Extract x402 payment payload from the HTTP header or MCP _meta.
 
-    The x402 SDK sends the payment in the MCP request's _meta field under the
-    key "x402/payment". FastMCP does not expose _meta directly on the request
-    object, so we parse the raw body manually.
+    The @x402/fetch client sends payment via the X-PAYMENT HTTP header
+    (base64-encoded JSON). MCP-native x402 clients may send it in
+    _meta["x402/payment"]. We check both.
     """
+    import base64
+
+    # Check HTTP header first (X-PAYMENT or PAYMENT-SIGNATURE)
+    for header_name in ("x-payment", "payment-signature"):
+        header_val = request.headers.get(header_name)
+        if header_val:
+            try:
+                decoded = base64.b64decode(header_val)
+                return json.loads(decoded)
+            except Exception:
+                try:
+                    return json.loads(header_val)
+                except Exception:
+                    pass
+
+    # Check _meta in JSON-RPC body
     try:
         body = getattr(request, "_body", None)
         if body is None:
-            # Try reading the body bytes if it's a Starlette Request
             return None
         if isinstance(body, (bytes, bytearray)):
             body = body.decode()
