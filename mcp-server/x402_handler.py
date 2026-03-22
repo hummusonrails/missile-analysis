@@ -121,6 +121,14 @@ async def verify_and_settle(payment_header: str) -> dict:
     reqs = _build_thirdweb_requirements()
     payload_obj = _parse_payment_header(payment_header)
 
+    # Ensure payload has required top-level fields
+    if "network" not in payload_obj:
+        payload_obj["network"] = ARBITRUM_NETWORK
+    if "x402Version" not in payload_obj:
+        payload_obj["x402Version"] = 1
+
+    logger.info("Parsed payment payload keys: %s", list(payload_obj.keys()))
+
     headers = {
         "Content-Type": "application/json",
         "x-secret-key": secret,
