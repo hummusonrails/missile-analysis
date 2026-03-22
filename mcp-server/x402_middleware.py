@@ -78,6 +78,7 @@ class X402PaymentMiddleware:
 
             # Encode payment requirements as base64 JSON (x402 v2 format)
             reqs_dict = {
+                "x402Version": 2,
                 "scheme": reqs.scheme,
                 "network": reqs.network,
                 "asset": reqs.asset,
@@ -95,8 +96,9 @@ class X402PaymentMiddleware:
                 (b"payment-required", reqs_b64.encode()),
             ]
             body = json.dumps({
+                "x402Version": 2,
                 "error": "Payment Required",
-                "paymentRequirements": [reqs_dict],
+                "accepts": [reqs_dict],
             }).encode()
 
         except Exception as exc:
