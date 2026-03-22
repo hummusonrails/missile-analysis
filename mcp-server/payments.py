@@ -172,3 +172,53 @@ async def _verify_and_settle_x402(payment_data: dict, tool_name: str) -> None:
     except Exception as exc:
         logger.exception("x402 payment processing error for %s: %s", tool_name, exc)
         raise ValueError("Payment processing error") from exc
+
+
+def _extract_mpp_credential(request) -> dict | None:
+    """Extract MPP credential from the raw MCP JSON-RPC body.
+
+    MPP sends credentials in _meta["org.paymentauth/credential"].
+    """
+    try:
+        body = getattr(request, "_body", None)
+        if body is None:
+            return None
+        if isinstance(body, (bytes, bytearray)):
+            body = body.decode()
+        data = json.loads(body)
+        meta = data.get("params", {}).get("_meta", {}) or {}
+        credential = meta.get("org.paymentauth/credential")
+        if credential:
+            return credential if isinstance(credential, dict) else json.loads(credential)
+    except Exception:
+        pass
+    return None
+
+
+async def _verify_mpp(credential_data: dict, tool_name: str) -> None:
+    """Verify an MPP credential.
+
+    Raises ValueError if invalid. Logs usage on success.
+    """
+    try:
+        import mpp_handler
+
+        # verify_or_challenge returns (credential, receipt) if valid
+        # or raises PaymentRequiredError if challenge needed
+        # Since we already have the credential, we verify it directly
+        from mpp.extensions.mcp import MCPCredential, META_CREDENTIAL
+
+        # The credential was already extracted from _meta
+        # Use mpp_handler to verify it
+        result = await mpp_handler.check_mpp_payment(
+            {META_CREDENTIAL: credential_data},
+            tool_name,
+        )
+        logger.info("MPP payment verified for tool %s", tool_name)
+        await db_write.log_usage("mpp", tool_name, "mpp")
+
+    except Exception as exc:
+        if "PaymentRequired" in type(exc).__name__:
+            raise  # Let the payment challenge propagate
+        logger.exception("MPP payment processing error for %s: %s", tool_name, exc)
+        raise ValueError("Payment processing error") from exc
