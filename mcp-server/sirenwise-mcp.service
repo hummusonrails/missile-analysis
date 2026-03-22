@@ -1,0 +1,15 @@
+[Unit]
+Description=SirenWise MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=openclaw
+WorkingDirectory=/home/openclaw/.openclaw/skills/sirenwise-mcp
+EnvironmentFile=/home/openclaw/.openclaw/skills/sirenwise-mcp/.env
+ExecStart=/home/openclaw/.openclaw/skills/sirenwise-mcp/.venv/bin/python server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

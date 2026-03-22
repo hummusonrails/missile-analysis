@@ -1,0 +1,16 @@
+[Unit]
+Description=SirenWise MCP Poke Tunnel
+After=sirenwise-mcp.service
+Requires=sirenwise-mcp.service
+
+[Service]
+Type=simple
+User=openclaw
+ExecStart=/usr/bin/npx poke@latest tunnel http://localhost:8001/mcp -n "SirenWise"
+Restart=always
+RestartSec=10
+Environment=HOME=/home/openclaw
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
