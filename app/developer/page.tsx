@@ -44,20 +44,31 @@ export default function DeveloperPage() {
 
             {/* x402 */}
             <div className="bg-bg-surface border border-border rounded-lg p-4">
-              <h3 className="font-mono text-sm font-semibold text-accent-amber mb-2">x402 (Base USDC)</h3>
-              <p className="text-xs text-text-tertiary mb-4">
-                Pay per request with USDC on Base. No API key needed. Permissionless.
+              <h3 className="font-mono text-sm font-semibold text-accent-amber mb-2">x402 (Arbitrum USDC)</h3>
+              <p className="text-xs text-text-tertiary mb-3">
+                Pay per request with USDC on Arbitrum One. No API key needed. Permissionless.
               </p>
-              <span className="text-xs text-text-tertiary italic">Coming soon — Phase 2</span>
+              <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary px-2 py-1.5 rounded overflow-x-auto">
+{`import { wrapFetchWithPayment } from "@x402/fetch"
+import { registerExactEvmScheme } from "@x402/evm/exact/client"
+
+// Wraps fetch to handle 402 → pay → retry
+const paidFetch = wrapFetchWithPayment(fetch, client)`}
+              </pre>
             </div>
 
             {/* MPP */}
             <div className="bg-bg-surface border border-border rounded-lg p-4">
-              <h3 className="font-mono text-sm font-semibold text-accent-green mb-2">MPP (Stripe / Tempo)</h3>
-              <p className="text-xs text-text-tertiary mb-4">
-                Machine payments via Stripe cards or Tempo stablecoins.
+              <h3 className="font-mono text-sm font-semibold text-accent-green mb-2">MPP (Tempo)</h3>
+              <p className="text-xs text-text-tertiary mb-3">
+                Machine payments via Tempo stablecoins. Built on the Machine Payments Protocol by Stripe &amp; Tempo.
               </p>
-              <span className="text-xs text-text-tertiary italic">Coming soon — Phase 3</span>
+              <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary px-2 py-1.5 rounded overflow-x-auto">
+{`import Mppx from "mppx"
+
+// mppx.fetch handles 402 challenge flow
+const client = Mppx.create({ methods: [tempo()] })`}
+              </pre>
             </div>
           </div>
         </div>
@@ -108,11 +119,21 @@ export default function DeveloperPage() {
             https://mcp.sirenwise.com/mcp
           </code>
         </div>
-        <div className="bg-bg-elevated border border-border rounded-lg p-4">
-          <p className="text-xs text-text-tertiary mb-2">Use with any MCP client — add your API key as a Bearer token:</p>
-          <pre className="text-xs font-mono text-text-secondary bg-bg-surface px-3 py-2 rounded overflow-x-auto">
+        <div className="bg-bg-elevated border border-border rounded-lg p-4 space-y-3">
+          <div>
+            <p className="text-xs text-text-tertiary mb-1">API Key (Stripe):</p>
+            <pre className="text-xs font-mono text-text-secondary bg-bg-surface px-3 py-2 rounded overflow-x-auto">
 {`Authorization: Bearer sw_your_api_key_here`}
-          </pre>
+            </pre>
+          </div>
+          <div>
+            <p className="text-xs text-text-tertiary mb-1">x402 (Arbitrum USDC):</p>
+            <p className="text-xs text-text-secondary">No API key needed — <code className="text-accent-amber">@x402/fetch</code> handles payment automatically via the 402 protocol.</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-tertiary mb-1">MPP (Tempo):</p>
+            <p className="text-xs text-text-secondary">No API key needed — <code className="text-accent-green">mppx</code> handles payment via the Machine Payments Protocol.</p>
+          </div>
         </div>
       </div>
 

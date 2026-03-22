@@ -1,0 +1,11 @@
+{
+  "name": "sirenwise-test-clients",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@x402/fetch": "latest",
+    "@x402/evm": "latest",
+    "viem": "^2.0.0",
+    "mppx": "latest"
+  }
+}
