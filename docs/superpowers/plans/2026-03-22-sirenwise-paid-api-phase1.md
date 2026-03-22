@@ -41,7 +41,7 @@ def test_hash_api_key_deterministic():
 
 def test_make_key_prefix():
     key = "sw_abcdefghijklmnop"
-    assert make_key_prefix(key) == "sw_abcde"
+    assert make_key_prefix(key) == "sw_abcdef"
 
 
 def test_make_key_prefix_short_key():
@@ -118,7 +118,8 @@ async def create_tables():
             owner_email TEXT NOT NULL,
             credits_remaining INTEGER NOT NULL DEFAULT 1000,
             created_at INTEGER NOT NULL,
-            revoked_at INTEGER
+            revoked_at INTEGER,
+            stripe_session_id TEXT UNIQUE
         )"""},
         {"sql": """CREATE TABLE IF NOT EXISTS usage_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +175,18 @@ async def log_usage(key_or_wallet: str, tool_name: str, payment_method: str):
         ],
     }
     await _execute_write([stmt])
+
+
+async def revoke_key(key: str):
+    """Revoke an API key by setting revoked_at timestamp."""
+    stmt = {
+        "sql": "UPDATE api_keys SET revoked_at = ? WHERE key_hash = ?",
+        "args": [
+            {"type": "integer", "value": str(int(time.time() * 1000))},
+            {"type": "text", "value": hash_api_key(key)},
+        ],
+    }
+    await _execute_write([stmt])
 ```
 
 - [ ] **Step 4: Run tests — expect PASS**
@@ -199,7 +212,9 @@ git commit -m "feat(mcp): add Turso write client for API keys and usage logging"
 ```python
 # mcp-server/tests/test_payments.py
 """Tests for payment access control."""
-from payments import is_external, extract_bearer_token
+import time
+import pytest
+from payments import is_external, extract_bearer_token, _check_rate_limit, _rate_counters, sanitize_error
 
 
 def test_is_external_with_matching_secret():
@@ -211,14 +226,11 @@ def test_is_external_no_header():
 
 
 def test_is_external_wrong_secret():
-    # Wrong secret should raise
-    import pytest
     with pytest.raises(ValueError, match="Unauthorized"):
         is_external("wrong-secret", "correct-secret")
 
 
 def test_is_external_no_env_secret():
-    # No env secret configured = localhost mode
     assert is_external(None, None) is False
 
 
@@ -236,6 +248,36 @@ def test_extract_bearer_token_empty():
 
 def test_extract_bearer_token_none():
     assert extract_bearer_token(None) is None
+
+
+def test_rate_limit_under():
+    _rate_counters.clear()
+    _check_rate_limit("test_under", 5)  # should not raise
+
+
+def test_rate_limit_exceeded():
+    _rate_counters.clear()
+    for _ in range(10):
+        _rate_counters["test_exceed"].append(time.time())
+    with pytest.raises(ValueError, match="Rate limit exceeded"):
+        _check_rate_limit("test_exceed", 10)
+
+
+def test_rate_limit_expired_entries():
+    _rate_counters.clear()
+    # All entries are 2 minutes old — should be pruned
+    old = time.time() - 120
+    _rate_counters["test_old"] = [old] * 20
+    _check_rate_limit("test_old", 5)  # should not raise — old entries pruned
+
+
+def test_sanitize_error_external():
+    assert sanitize_error("Invalid or exhausted API key", is_ext=True) == "Authentication failed"
+
+
+def test_sanitize_error_localhost():
+    msg = "Invalid or exhausted API key"
+    assert sanitize_error(msg, is_ext=False) == msg
 ```
 
 - [ ] **Step 2: Run tests — expect FAIL**
@@ -265,6 +307,18 @@ logger = logging.getLogger(__name__)
 _rate_counters: dict[str, list[float]] = defaultdict(list)
 RATE_LIMIT_PER_KEY = 100  # requests per minute
 RATE_LIMIT_PER_IP = 30    # requests per minute (keyless)
+
+
+def sanitize_error(message: str, is_ext: bool) -> str:
+    """Sanitize error messages for external requests."""
+    if not is_ext:
+        return message  # Localhost gets detailed errors
+    # Map specific errors to generic ones
+    if "rate limit" in message.lower():
+        return "Rate limit exceeded"
+    if "authentication" in message.lower() or "unauthorized" in message.lower():
+        return "Authentication failed"
+    return "Request failed"
 
 
 def is_external(caddy_secret_header: str | None, expected_secret: str | None) -> bool:
@@ -321,11 +375,15 @@ async def check_access(tool_name: str):
     auth_header = request.headers.get("authorization", "")
     token = extract_bearer_token(auth_header)
 
+    # Rate limit by IP for all external requests (before auth check)
+    client_ip = request.headers.get("x-forwarded-for", "unknown")
+    _check_rate_limit(f"ip:{client_ip}", RATE_LIMIT_PER_IP)
+
     if token:
         _check_rate_limit(f"key:{token[:8]}", RATE_LIMIT_PER_KEY)
         valid = await db_write.validate_and_decrement(token)
         if not valid:
-            raise ValueError("Invalid or exhausted API key")
+            raise ValueError("Authentication failed")  # Generic — don't reveal if key exists vs exhausted
         await db_write.log_usage(token[:8], tool_name, "api_key")
         return
 
@@ -537,7 +595,6 @@ export function getStripe() {
 ```typescript
 // lib/api-keys.ts
 import { createHash, randomBytes } from "crypto";
-import { createServerClient } from "./db";
 
 export function generateApiKey(): string {
   return "sw_" + randomBytes(32).toString("base64url");
@@ -551,12 +608,10 @@ export function keyPrefix(key: string): string {
   return key.slice(0, 8);
 }
 
-export async function storeApiKey(key: string, email: string, credits: number = 1000) {
-  const client = createServerClient();
+export async function storeApiKey(key: string, email: string, sessionId: string, credits: number = 1000) {
   const writeToken = process.env.TURSO_WRITE_TOKEN;
   if (!writeToken) throw new Error("TURSO_WRITE_TOKEN not set");
 
-  // Use write token for this operation
   const url = process.env.TURSO_DB_URL?.trim().replace("libsql://", "https://");
   if (!url) throw new Error("TURSO_DB_URL not set");
 
@@ -571,13 +626,14 @@ export async function storeApiKey(key: string, email: string, credits: number = 
         {
           type: "execute",
           stmt: {
-            sql: "INSERT OR IGNORE INTO api_keys (key_hash, key_prefix, owner_email, credits_remaining, created_at) VALUES (?, ?, ?, ?, ?)",
+            sql: "INSERT INTO api_keys (key_hash, key_prefix, owner_email, credits_remaining, created_at, stripe_session_id) VALUES (?, ?, ?, ?, ?, ?)",
             args: [
               { type: "text", value: hashApiKey(key) },
               { type: "text", value: keyPrefix(key) },
               { type: "text", value: email },
               { type: "integer", value: String(credits) },
               { type: "integer", value: String(Date.now()) },
+              { type: "text", value: sessionId },
             ],
           },
         },
@@ -652,7 +708,12 @@ export async function POST(request: NextRequest) {
     const email = session.customer_details?.email || "unknown";
     const apiKey = generateApiKey();
 
-    await storeApiKey(apiKey, email);
+    try {
+      await storeApiKey(apiKey, email, session.id);
+    } catch {
+      // Key already created for this session (success page beat us) — skip
+      return NextResponse.json({ received: true });
+    }
 
     // Store key in session metadata for retrieval on success page
     await stripe.checkout.sessions.update(session.id, {
@@ -700,16 +761,22 @@ export const metadata: Metadata = {
   description: "Real-time missile alert analysis API for developers. Four MCP tools for daily context, sleep impact, clustering, and streak analysis.",
 };
 
+"use client";
+
 function CheckoutButton() {
+  async function handleCheckout() {
+    const res = await fetch("/api/developer/checkout", { method: "POST" });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  }
+
   return (
-    <form action="/api/developer/checkout" method="POST">
-      <button
-        type="submit"
-        className="px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-colors"
-      >
-        Buy 1,000 requests — $10
-      </button>
-    </form>
+    <button
+      onClick={handleCheckout}
+      className="px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-colors"
+    >
+      Buy 1,000 requests — $10
+    </button>
   );
 }
 
@@ -834,13 +901,21 @@ async function getOrCreateKey(sessionId: string) {
   }
 
   // Generate key synchronously (webhook may not have fired yet)
+  // storeApiKey uses stripe_session_id UNIQUE constraint for idempotency —
+  // if webhook already created a key for this session, the INSERT will fail
+  // and we retrieve the existing key from metadata instead
   const apiKey = generateApiKey();
   const email = session.customer_details?.email || "unknown";
-  await storeApiKey(apiKey, email);
-
-  await stripe.checkout.sessions.update(sessionId, {
-    metadata: { api_key: apiKey },
-  });
+  try {
+    await storeApiKey(apiKey, email, sessionId);
+    await stripe.checkout.sessions.update(sessionId, {
+      metadata: { api_key: apiKey },
+    });
+  } catch {
+    // Key already exists for this session (webhook beat us) — re-fetch
+    const updated = await stripe.checkout.sessions.retrieve(sessionId);
+    return updated.metadata?.api_key || null;
+  }
 
   return apiKey;
 }
