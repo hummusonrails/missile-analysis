@@ -53,16 +53,12 @@ def _get_pay_to_address() -> str:
     return addr
 
 
-def get_resource_server():
+async def get_resource_server():
     """Return (or create) the singleton x402ResourceServer instance.
 
-    The server is *not* initialized via initialize() (which would call the
-    Thirdweb /supported endpoint at startup). Instead we register the EVM
-    scheme directly and mark _initialized=True so that verify_payment /
-    settle_payment can be called immediately.
-
-    The facilitator is still used on every verify/settle HTTP call — we just
-    skip the discovery handshake to keep startup fast and offline-resilient.
+    Calls initialize() which contacts the Thirdweb facilitator's /supported
+    endpoint to discover supported schemes and networks. This is required
+    for verify_payment/settle_payment to work correctly.
     """
     global _resource_server
 
@@ -77,7 +73,6 @@ def get_resource_server():
     thirdweb_secret = os.environ.get("THIRDWEB_SECRET_KEY", "").strip()
 
     if thirdweb_secret:
-        # Thirdweb requires a secret key sent as a Bearer token on verify/settle.
         class _ThirdwebAuthProvider(AuthProvider):
             def get_auth_headers(self) -> AuthHeaders:
                 auth = {"Authorization": f"Bearer {thirdweb_secret}"}
@@ -99,9 +94,9 @@ def get_resource_server():
     server = x402ResourceServer(facilitator)
     server.register(ARBITRUM_NETWORK, ExactEvmServerScheme())
 
-    # Mark initialized so verify_payment/settle_payment work without calling
-    # initialize() (which requires a live /supported response from the facilitator).
-    server._initialized = True
+    # initialize() calls the facilitator's /supported endpoint to populate
+    # _supported_responses, which verify_payment/settle_payment need.
+    await server.initialize()
 
     _resource_server = server
     logger.info(

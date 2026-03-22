@@ -162,7 +162,7 @@ async def _verify_and_settle_x402(payment_data: dict, tool_name: str) -> None:
         import x402_handler
         from x402.schemas.payments import PaymentPayload
 
-        resource_server = x402_handler.get_resource_server()
+        resource_server = await x402_handler.get_resource_server()
         requirements = x402_handler.get_payment_requirements()
 
         payload = PaymentPayload.model_validate(payment_data)
