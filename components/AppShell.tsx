@@ -25,6 +25,9 @@ import { NotificationBell } from "./NotificationBell";
 import { ShareButton } from "./ShareButton";
 import { SituationBrief } from "./map/SituationBrief";
 import { MapLegend } from "./map/MapLegend";
+import { ApiBanner } from "./ApiBanner";
+import { Code2 } from "lucide-react";
+import Link from "next/link";
 
 type Tab = "map" | "analytics" | "feed" | "ai";
 
@@ -144,6 +147,9 @@ export function AppShell() {
           )}
           {analytics && <ThreatBadge escalation={analytics.escalation_patterns} />}
           <LanguageToggle />
+          <Link href="/developer" aria-label="API Developer Docs" className="text-text-tertiary hover:text-text-secondary transition-colors">
+            <Code2 size={16} />
+          </Link>
         </div>
       </header>
 
@@ -160,6 +166,9 @@ export function AppShell() {
 
       {/* System status */}
       <StatusBanner />
+
+      {/* API CTA banner */}
+      <ApiBanner />
 
       {/* Content area */}
       <main className="flex-1 overflow-hidden">
