@@ -73,29 +73,37 @@ Uses x402's native MCP integration (`x402.mcp` package). Payment data flows via 
 
 ### Flow 3: MPP (Stripe / Tempo)
 
-Uses MPP's HTTP 402 challenge-response flow.
+Uses MPP's native MCP transport extension (`pympp[mcp]`). Like x402, payment flows via JSON-RPC `_meta` fields — NOT HTTP 402 headers. This means both x402 and MPP work at the same level.
 
-1. MCP client calls a tool on `mcp.sirenwise.com/mcp` with no auth
-2. Server responds with HTTP 402 + `WWW-Authenticate: MPP` header + JSON body with payment challenge (price: $0.01, accepted methods: Stripe card, Tempo stablecoin)
-3. Client fulfills payment (Stripe payment intent or Tempo on-chain)
-4. Client retries with `Authorization: MPP <credential>` header
-5. Server verifies credential, executes tool, returns result + `Receipt` header
+1. MCP client calls a tool on `mcp.sirenwise.com/mcp` with no payment
+2. Server returns JSON-RPC error code `-32042` ("Payment Required") with challenge data:
+   - challenge ID, realm, accepted methods (Tempo stablecoin, Stripe card)
+   - price: $0.01, currency: USD, recipient address
+   - expiry timestamp
+3. Client fulfills payment (signs Tempo transaction or creates Stripe SPT)
+4. Client retries with `_meta["org.paymentauth/credential"]` containing the credential
+5. Server verifies credential via `pympp`, executes tool, returns result with `_meta["org.paymentauth/receipt"]`
 
-**Dependencies:** `mppx` (TypeScript) for the protocol handling, or `pympp` (Python, early). Stripe secret key for card payments. MPP secret key for credential verification.
+**Dependencies:** `pympp[mcp,tempo,server]>=0.4.0`. Stripe secret key for card payments.
+
+**Server advertises payment capabilities** in MCP `InitializeResult`:
+```json
+{"capabilities": {"experimental": {"payment": {"methods": {"tempo": {"intents": ["charge"]}}}}}}
+```
 
 ### Auth Priority (in server request handling)
 
 1. **Localhost** (Poke tunnel) → free pass, serve immediately
 2. **`Authorization: Bearer <key>`** → validate API key in Turso, check credit balance, serve
 3. **`_meta["x402/payment"]`** in JSON-RPC body → verify via x402 facilitator, serve
-4. **`Authorization: MPP <credential>`** → verify via MPP, serve
-5. **None of the above** → return payment requirements (x402 format in tool result + MPP 402 challenge)
+4. **`_meta["org.paymentauth/credential"]`** in JSON-RPC body → verify via pympp, serve
+5. **None of the above** → return payment requirements (both x402 and MPP challenge data)
 
 ## Server Changes
 
 ### Modified files
 
-**`mcp-server/server.py`** — Replace `validate_api_key()` with `payments.check_access()` in each tool function. Switch from `mcp.run()` to ASGI export via `mcp.http_app()` wrapped in a Starlette app with MPP middleware. Run with uvicorn directly: `uvicorn server:app --host 127.0.0.1 --port 8001`. The systemd ExecStart changes accordingly. The `/health` endpoint is mounted on the same Starlette app.
+**`mcp-server/server.py`** — Replace `validate_api_key()` with `payments.check_access()` in each tool function. Both x402 and MPP integrate at the tool-call level via `_meta` fields, so the server can continue using `mcp.run()` (no ASGI middleware needed). The `/health` endpoint can be added via FastMCP's `http_app()` if needed, but is not required for the payment integration itself.
 
 ### New files
 
@@ -122,14 +130,16 @@ Uses MPP's HTTP 402 challenge-response flow.
 **x402 + FastMCP integration pattern:** The `create_payment_wrapper_sync` wraps the Python function itself (decorator pattern), not the HTTP layer. FastMCP passes `_meta` through to the tool context. The wrapper checks the context for payment data before executing the wrapped function. If FastMCP does not expose `_meta` in the tool function signature, an alternative approach is to use ASGI middleware at the HTTP level (via `PaymentMiddlewareASGI`) with a single route config for `POST /mcp`, where the price applies to all tool calls uniformly ($0.01 flat rate makes this viable).
 
 **`mcp-server/mpp_handler.py`** — MPP integration:
-- Handles MPP payment verification at the ASGI middleware level
-- Since MPP uses HTTP 402 responses but MCP uses JSON-RPC over HTTP, the middleware must intercept the raw HTTP request BEFORE FastMCP processes it:
-  1. Check for `Authorization: MPP <credential>` header on incoming POST to `/mcp`
-  2. If credential present and valid → pass through to FastMCP normally
-  3. If no credential and no other valid auth → return HTTP 402 with `WWW-Authenticate: MPP` header and JSON payment challenge body (this happens before FastMCP serializes a JSON-RPC response)
-- This requires the server to use `mcp.http_app()` ASGI export (not `mcp.run()`) so the MPP middleware can wrap the ASGI app
-- Supports Stripe (card payments) and Tempo (stablecoin) methods
-- **Risk note:** `pympp` Python SDK is early-stage. If it proves unusable, Phase 3 can implement the MPP 402 protocol manually (it's a simple HTTP challenge-response pattern) or use a TypeScript sidecar via `mppx`
+- Uses `pympp.extensions.mcp.verify_or_challenge` to handle payment at the tool-call level
+- Works the same way as x402 — via `_meta` in JSON-RPC, not HTTP headers
+- Each tool function calls `verify_or_challenge()` which:
+  1. Checks for `_meta["org.paymentauth/credential"]` in the request
+  2. If absent: raises `PaymentRequiredError` (JSON-RPC error `-32042`) with challenge data
+  3. If present: verifies the credential, returns receipt data for `_meta["org.paymentauth/receipt"]`
+- Configures payment methods: Tempo (stablecoins on Tempo L1) and optionally Stripe (card via SPT)
+- Uses `pympp.methods.tempo.tempo` for Tempo payment method setup
+- **No ASGI middleware needed** — MPP's MCP extension works at the JSON-RPC level like x402
+- **Risk note:** `pympp` v0.4.2 is young (repo created Jan 2026). If it proves unusable, the protocol is simple enough to implement manually (JSON-RPC error with challenge, credential verification via Tempo RPC)
 
 ### New Turso tables
 
@@ -172,7 +182,7 @@ httpx>=0.27.0
 python-dotenv>=1.0.0
 starlette>=0.40.0
 x402[mcp,evm]>=2.5.0
-pympp>=0.1.0
+pympp[mcp,tempo,server]>=0.4.0
 ```
 
 ## Frontend: Developer Page
