@@ -24,6 +24,7 @@ Poke ──HTTPS──▶ Caddy (auto-TLS, rate-limited)
 - **Colocated** with the SirenWise repo at `missile-analysis/mcp-server/` but independently deployable.
 - **Stateless** — no local database, no session state. Every request queries Turso directly.
 - **Analysis logic isolated** in `analysis.py` so a future proactive push layer (cron → Poke inbound SMS API) can reuse the same functions without importing FastMCP.
+- **Turso queries via `httpx`** — uses Turso's HTTP API directly rather than a Python libsql client (avoids unstable Python package ecosystem). Simple POST requests with auth token.
 
 ## Tools
 
@@ -100,11 +101,14 @@ Detect whether alerts were isolated events or part of a barrage.
 - "No alerts on this date" if none found
 
 **Query logic:**
-1. Fetch all alerts for the date, sorted by timestamp ascending
-2. Group into clusters: start a new cluster when the gap between consecutive alerts exceeds `window_minutes`
-3. For each cluster, compute duration (last - first timestamp), count alerts, collect unique cities
-4. Assign labels based on alert count thresholds
-5. Compute summary statistics
+1. Fetch all alerts for the date across all cities, sorted by timestamp ascending
+2. Group into clusters by time: start a new cluster when the gap between consecutive alerts exceeds `window_minutes`
+3. For each cluster, compute duration (last - first timestamp), count alerts, collect all unique cities hit
+4. Filter clusters: only include clusters where at least one alert contains the target city (or region cities, or all if nationwide)
+5. Assign labels based on alert count thresholds
+6. Compute summary statistics
+
+This approach clusters first, then filters — so a barrage hitting Tel Aviv, Modi'in, and Jerusalem simultaneously is reported as one barrage (not split into isolated city-level events).
 
 ### 4. `get_streak`
 
@@ -125,18 +129,20 @@ Calculate quiet-day streaks — how many days since the last alert.
 - "No alerts in the last 30 days" if applicable
 
 **Query logic:**
-1. Find the most recent alert where `cities` contains the target city
+1. Find the most recent alert via optimized query: `SELECT ... WHERE cities LIKE '%target_city%' ORDER BY timestamp DESC LIMIT 1` (avoids fetching 30 days of data)
 2. Compute calendar days between that alert and today (Asia/Jerusalem)
 3. Check if today has any alerts — if yes and yesterday had none, flag as streak-breaker
 4. Scan last 30 days day-by-day to find the longest consecutive gap
-5. Map threat level integer to human-readable label (0=Rockets, 2=Infiltration, etc.)
+5. Map threat level integer to human-readable label (see `THREAT_LABELS` in config)
+
+**Note on nationwide mode:** During active conflict periods, nationwide mode will commonly return 0-day streaks since alerts occur continuously somewhere. The output should acknowledge this: "Nationwide alerts are continuous — consider filtering by city for meaningful streak data."
 
 ## Data Access
 
 ### Turso Connection
 - **URL:** Same Turso database as SirenWise (`missile-analysis-hummusonrails.aws-us-east-1.turso.io`)
 - **Auth:** A separate read-only token (to be generated via Turso CLI: `turso db tokens create missile-analysis --read-only`)
-- **Client:** `libsql_client` Python package (HTTP transport)
+- **Client:** Direct HTTP requests via `httpx` to Turso's HTTP API (`https://` URL variant of the libsql:// URL). This avoids dependency on the unstable `libsql-client` Python package. The existing SirenWise project already converts `libsql://` → `https://` for HTTP transport (see `lib/db.ts`).
 
 ### Query Patterns
 All tools query the `alerts` table:
@@ -152,9 +158,19 @@ City filtering is done in Python after fetching — the `cities` column is a JSO
 ### City Matching
 The `cities` column contains Hebrew city names as a JSON array. Matching Modi'in uses:
 ```python
-json.loads(row["cities"])  # → ["מודיעין-מכבים-רעות", ...]
-city in parsed_cities      # exact match
+try:
+    parsed_cities = json.loads(row["cities"])
+except (json.JSONDecodeError, TypeError):
+    continue  # skip malformed rows
+city in parsed_cities  # exact match
 ```
+
+### Region Filtering
+When `region_id` is provided instead of a city, `db.py` first queries `city_coords` to resolve all city names in that region:
+```sql
+SELECT city_name FROM city_coords WHERE region_id = ?
+```
+This city list is cached in-memory (regions don't change at runtime). The analysis functions accept either a single city string or a list of city strings, using the same containment check.
 
 ## Security
 
@@ -205,7 +221,7 @@ missile-analysis/mcp-server/
 ├── analysis.py            # Pure analysis functions (no FastMCP imports)
 ├── db.py                  # Turso read-only client (async httpx)
 ├── config.py              # Constants: default city, night hours, cluster window, threat labels
-├── requirements.txt       # fastmcp>=2.12.0, uvicorn>=0.35.0, libsql-client>=0.3.0, python-dotenv>=1.0.0
+├── requirements.txt       # fastmcp>=2.12.0, uvicorn>=0.35.0, httpx>=0.27.0, python-dotenv>=1.0.0
 ├── .env.example           # MCP_API_KEY=, TURSO_DB_URL=, TURSO_READ_TOKEN=
 ├── Caddyfile              # Reverse proxy config
 ├── sirenwise-mcp.service  # Systemd unit file
@@ -220,24 +236,30 @@ missile-analysis/mcp-server/
 - `DEEP_SLEEP_START = 0`, `DEEP_SLEEP_END = 5`
 - `DEFAULT_CLUSTER_WINDOW_MINUTES = 5`
 - `TIMEZONE = "Asia/Jerusalem"`
-- `THREAT_LABELS = {0: "Rockets/Missiles", 1: "Unknown", 2: "Infiltration", ...}`
+- `THREAT_LABELS = {0: "Rockets/Missiles", 1: "Unknown", 2: "Infiltration/Terror", 3: "Earthquake", 4: "Tsunami", 5: "Hostile Aircraft", 6: "Hazardous Materials", 7: "Unconventional Weapon", 8: "Nuclear Threat", 13: "Hostile Fire"}`
+- `THREAT_LABEL_DEFAULT = "Unknown Threat"` (fallback for unmapped values)
 
-**`db.py`** — Single async function to query alerts:
+**`db.py`** — Async Turso queries via `httpx`:
 - `async def fetch_alerts(start_ts, end_ts) -> list[dict]` — returns all alerts in the time range
-- Handles Turso HTTP connection with read-only token
-- Parses `cities` JSON column into Python lists
+- `async def fetch_latest_alert(city_filter: str) -> dict | None` — optimized single-row query for streak tool
+- `async def fetch_cities_for_region(region_id: str) -> list[str]` — queries `city_coords` table, cached in-memory after first call
+- Handles Turso HTTP API connection with read-only token (10-second timeout)
+- Parses `cities` JSON column into Python lists, skipping malformed rows with logging
 
 **`analysis.py`** — Pure functions, no I/O, no framework dependencies:
-- `def compute_daily_context(alerts, city, today) -> str`
-- `def compute_sleep_impact(alerts, city, night_date) -> str`
-- `def compute_clustering(alerts, city, date, window_minutes) -> str`
-- `def compute_streak(alerts, city, today) -> str`
-- Each takes a list of alert dicts and returns formatted plain text
+- `def compute_daily_context(alerts, cities_filter: str | list[str], today) -> str`
+- `def compute_sleep_impact(alerts, cities_filter: str | list[str], night_date) -> str`
+- `def compute_clustering(alerts, cities_filter: str | list[str], date, window_minutes) -> str`
+- `def compute_streak(alerts, cities_filter: str | list[str], today) -> str`
+- `cities_filter` accepts a single city name (string) or a list of city names (for region mode). Nationwide mode passes `None` to skip filtering.
+- Each returns formatted plain text
 
 **`server.py`** — Thin wiring layer:
 - Creates FastMCP app with auth dependency
 - Defines 4 `@mcp.tool` functions that call `db.fetch_alerts()` then `analysis.compute_*()`
-- Runs with `mcp.run(transport="http", host="127.0.0.1", port=8400, stateless_http=True)`
+- Exports ASGI app via `app = mcp.http_app(path="/mcp", stateless_http=True)` for uvicorn
+- Also adds a `/health` endpoint (returns 200 + Turso connectivity check) via a lightweight ASGI wrapper
+- Startup: `uvicorn server:app --host 127.0.0.1 --port 8400`
 
 ## Deployment
 
@@ -251,11 +273,16 @@ sirenwise-mcp.yourdomain.com {
             window 1m
         }
     }
-    reverse_proxy 127.0.0.1:8400
+    reverse_proxy 127.0.0.1:8400 {
+        health_uri /health
+        health_interval 30s
+    }
 }
 ```
 
 (Domain TBD — Ben to provide the subdomain he wants to use.)
+
+**Note:** The `rate_limit` directive requires the `caddy-ratelimit` plugin. Install Caddy with the plugin via `xcaddy build --with github.com/mholt/caddy-ratelimit` or use Caddy's download page with plugins selected. If the plugin is not available, remove the `rate_limit` block — Caddy will still provide TLS and reverse proxying.
 
 ### Systemd Unit
 ```ini
