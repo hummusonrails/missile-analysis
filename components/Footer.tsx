@@ -28,6 +28,13 @@ export function Footer() {
           {lang === "he" ? "מקור: פיקוד העורף" : "src: Pikud HaOref"}
         </span>
         <span className="text-text-tertiary/30">·</span>
+        <a
+          href="/developer"
+          className="text-[9px] font-mono text-text-tertiary/50 hover:text-text-secondary transition-colors"
+        >
+          Developers: Access the SirenWise API →
+        </a>
+        <span className="text-text-tertiary/30">·</span>
         {SISTER_SITES.map((site, i) => (
           <span key={site.href} className="contents">
             {i > 0 && <span className="text-text-tertiary/30">·</span>}
