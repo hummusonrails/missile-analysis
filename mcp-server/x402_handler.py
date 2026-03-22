@@ -67,6 +67,44 @@ def get_payment_requirements_dict() -> dict:
     }
 
 
+def _build_thirdweb_requirements() -> dict:
+    """Build payment requirements in Thirdweb's expected format.
+
+    Thirdweb requires v1-style fields: maxAmountRequired, resource, description, mimeType.
+    """
+    return {
+        "scheme": "exact",
+        "network": ARBITRUM_NETWORK,
+        "maxAmountRequired": PRICE_USDC_ATOMIC,
+        "asset": USDC_ARBITRUM_ADDRESS,
+        "payTo": _get_pay_to_address(),
+        "maxTimeoutSeconds": MAX_TIMEOUT_SECONDS,
+        "resource": "https://mcp.sirenwise.com/mcp",
+        "description": "SirenWise API request ($0.01)",
+        "mimeType": "application/json",
+        "outputSchema": {},
+        "extra": {
+            "name": "USD Coin",
+            "version": "2",
+        },
+        "x402Version": 1,
+    }
+
+
+def _parse_payment_header(payment_header: str) -> dict:
+    """Parse the base64-encoded payment header into an object."""
+    import base64
+    try:
+        decoded = base64.b64decode(payment_header)
+        return json.loads(decoded)
+    except Exception:
+        try:
+            return json.loads(payment_header)
+        except Exception:
+            # Return as-is wrapped in expected structure
+            raise ValueError("Could not parse payment header")
+
+
 async def verify_and_settle(payment_header: str) -> dict:
     """Verify and settle an x402 payment via Thirdweb's API.
 
@@ -80,8 +118,8 @@ async def verify_and_settle(payment_header: str) -> dict:
         ValueError if verification or settlement fails
     """
     secret = _get_thirdweb_secret()
-    pay_to = _get_pay_to_address()
-    reqs = get_payment_requirements_dict()
+    reqs = _build_thirdweb_requirements()
+    payload_obj = _parse_payment_header(payment_header)
 
     headers = {
         "Content-Type": "application/json",
@@ -91,8 +129,7 @@ async def verify_and_settle(payment_header: str) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Step 1: Verify the payment
         verify_body = {
-            "x402Version": 2,
-            "paymentPayload": payment_header,
+            "paymentPayload": payload_obj,
             "paymentRequirements": reqs,
         }
         logger.info("Calling Thirdweb verify API...")
@@ -114,9 +151,9 @@ async def verify_and_settle(payment_header: str) -> dict:
 
         # Step 2: Settle the payment
         settle_body = {
-            "x402Version": 2,
-            "paymentPayload": payment_header,
+            "paymentPayload": payload_obj,
             "paymentRequirements": reqs,
+            "waitUntil": "confirmed",
         }
         logger.info("Calling Thirdweb settle API...")
         settle_resp = await client.post(SETTLE_URL, json=settle_body, headers=headers)
@@ -127,7 +164,13 @@ async def verify_and_settle(payment_header: str) -> dict:
             raise ValueError("Payment settlement failed")
 
         settle_result = settle_resp.json()
-        tx_hash = settle_result.get("txHash", settle_result.get("transactionHash", ""))
+        success = settle_result.get("success", False)
+        if not success:
+            reason = settle_result.get("errorReason", "unknown")
+            logger.warning("x402 settlement not successful: %s", reason)
+            raise ValueError("Payment settlement failed")
+
+        tx_hash = settle_result.get("transaction", "")
         logger.info("x402 payment settled: tx=%s", tx_hash)
 
         return settle_result
