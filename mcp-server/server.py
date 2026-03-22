@@ -125,5 +125,13 @@ async def get_streak(
     return compute_streak(alerts, cities_filter, today)
 
 if __name__ == "__main__":
+    import uvicorn
+    from x402_middleware import X402PaymentMiddleware
+
     port = int(os.environ.get("PORT", 8001))
-    mcp.run(transport="http", host="127.0.0.1", port=port, stateless_http=True)
+
+    # Get the ASGI app from FastMCP and wrap with x402 middleware
+    mcp_app = mcp.http_app(path="/mcp", stateless_http=True)
+    app = X402PaymentMiddleware(mcp_app)
+
+    uvicorn.run(app, host="127.0.0.1", port=port)
