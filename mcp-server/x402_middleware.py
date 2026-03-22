@@ -74,21 +74,9 @@ class X402PaymentMiddleware:
         """Send HTTP 402 with x402 PAYMENT-REQUIRED header."""
         try:
             import x402_handler
-            reqs = x402_handler.get_payment_requirements()
+            single_req = x402_handler.get_payment_requirements_dict()
 
-            # Encode payment requirements as base64 JSON (x402 v2 format)
-            single_req = {
-                "x402Version": 2,
-                "scheme": reqs.scheme,
-                "network": reqs.network,
-                "asset": reqs.asset,
-                "amount": reqs.amount,
-                "payTo": reqs.pay_to,
-                "maxTimeoutSeconds": reqs.max_timeout_seconds,
-                "extra": reqs.extra or {},
-            }
-
-            # Full PaymentRequired object (what @x402/fetch reads)
+            # Full PaymentRequired object (what @x402/fetch reads from header)
             payment_required = {
                 "x402Version": 2,
                 "accepts": [single_req],
@@ -98,7 +86,6 @@ class X402PaymentMiddleware:
 
             headers = [
                 (b"content-type", b"application/json"),
-                (b"x-payment-required", pr_b64.encode()),
                 (b"payment-required", pr_b64.encode()),
             ]
             body = pr_json.encode()
