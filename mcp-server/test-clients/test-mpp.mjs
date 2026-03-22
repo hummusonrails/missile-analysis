@@ -1,65 +1,49 @@
 #!/usr/bin/env node
 /**
  * Test 3: MPP Pay-per-request via Tempo stablecoins
- * Usage: node test-mpp.mjs <tempo-private-key>
  *
- * Requires stablecoins on Tempo mainnet in the wallet ($0.01 per request).
+ * Uses the mppx CLI — keys stored in macOS keychain.
+ * Requires a funded mppx account.
+ *
+ * Usage: node test-mpp.mjs [account-name]
+ * Default: "sirenwise-main"
+ *
+ * Setup:
+ *   npx mppx account create --account sirenwise-main
+ *   npx mppx account view --account sirenwise-main  (get address)
+ *   Fund the address with USDC on Tempo mainnet
  */
 
-import { Mppx, tempo } from "mppx/client";
+import { execSync } from "child_process";
 
-const PRIVATE_KEY = process.argv[2];
-if (!PRIVATE_KEY) {
-  console.error("Usage: node test-mpp.mjs <tempo-private-key>");
-  console.error("Needs stablecoins on Tempo mainnet in the wallet.");
-  process.exit(1);
-}
-
+const ACCOUNT = process.argv[2] || "sirenwise-main";
 const MCP_URL = "https://mcp.sirenwise.com/mcp";
 
+console.log(`Using mppx account: ${ACCOUNT}`);
 console.log("Calling MCP tool with MPP payment...\n");
 
 try {
-  const mppxClient = Mppx.create({
-    methods: [
-      tempo({
-        privateKey: PRIVATE_KEY,
-        chainId: 4217,
-        rpcUrl: "https://rpc.tempo.xyz",
-      }),
-    ],
-  });
-
-  const res = await mppxClient.fetch(MCP_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json, text/event-stream",
+  const body = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "get_streak",
+      arguments: { city: "Beer Sheva" },
     },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "tools/call",
-      params: {
-        name: "get_streak",
-        arguments: { city: "Beer Sheva" },
-      },
-      id: 1,
-    }),
+    id: 1,
   });
 
-  const text = await res.text();
-  const dataLine = text.split("\n").find((l) => l.startsWith("data: "));
-  if (dataLine) {
-    const data = JSON.parse(dataLine.slice(6));
-    if (data.result?.content?.[0]?.text) {
-      console.log("✓ MPP payment successful!\n");
-      console.log(data.result.content[0].text);
-    } else if (data.result?.isError) {
-      console.error("✗ Error:", data.result.content[0].text);
-    }
-  } else {
-    console.log("Raw response:", text);
-  }
+  const result = execSync(
+    `npx mppx "${MCP_URL}" --method POST --account ${ACCOUNT} -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" --data '${body}'`,
+    { encoding: "utf-8", timeout: 60000, cwd: import.meta.dirname }
+  );
+
+  console.log("✓ MPP response:\n");
+  console.log(result);
 } catch (err) {
-  console.error("✗ MPP payment failed:", err.message);
+  const stderr = err.stderr || "";
+  const stdout = err.stdout || "";
+  if (stdout) console.log("Output:", stdout);
+  if (stderr) console.error("Error:", stderr);
+  if (!stdout && !stderr) console.error("✗ MPP payment failed:", err.message);
 }

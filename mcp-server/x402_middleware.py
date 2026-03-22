@@ -71,12 +71,12 @@ class X402PaymentMiddleware:
         return await self._send_402(send)
 
     async def _send_402(self, send):
-        """Send HTTP 402 with x402 PAYMENT-REQUIRED header."""
+        """Send HTTP 402 with both x402 and MPP payment headers."""
         try:
             import x402_handler
             single_req = x402_handler.get_payment_requirements_dict()
 
-            # Full PaymentRequired object (what @x402/fetch reads from header)
+            # x402: Full PaymentRequired object (what @x402/fetch reads)
             payment_required = {
                 "x402Version": 2,
                 "accepts": [single_req],
@@ -84,14 +84,50 @@ class X402PaymentMiddleware:
             pr_json = json.dumps(payment_required)
             pr_b64 = base64.b64encode(pr_json.encode()).decode()
 
+            # MPP: WWW-Authenticate challenge (what mppx reads)
+            # Format: Payment id="...",realm="...",method="tempo",intent="charge",
+            #         expires="...",request="base64(json)"
+            import secrets
+            import time
+            from datetime import datetime, timezone, timedelta
+
+            challenge_id = secrets.token_urlsafe(16)
+            expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            mpp_request = {
+                "amount": "1",  # 1 cent USD
+                "currency": "usd",
+                "recipient": os.environ.get("TEMPO_PAY_TO_ADDRESS", single_req["payTo"]),
+            }
+            mpp_request_b64 = base64.b64encode(json.dumps(mpp_request).encode()).decode()
+
+            www_auth = (
+                f'Payment id="{challenge_id}",'
+                f'realm="mcp.sirenwise.com",'
+                f'method="tempo",'
+                f'intent="charge",'
+                f'expires="{expires}",'
+                f'request="{mpp_request_b64}"'
+            )
+
             headers = [
                 (b"content-type", b"application/json"),
                 (b"payment-required", pr_b64.encode()),
+                (b"www-authenticate", www_auth.encode()),
+                (b"cache-control", b"no-store"),
             ]
-            body = pr_json.encode()
+
+            # Body includes both x402 and MPP info
+            body = json.dumps({
+                "x402Version": 2,
+                "accepts": [single_req],
+                "type": "https://paymentauth.org/problems/payment-required",
+                "title": "Payment Required",
+                "status": 402,
+                "detail": "Payment is required. $0.01 per request via USDC on Arbitrum (x402) or Tempo stablecoins (MPP).",
+            }).encode()
 
         except Exception as exc:
-            logger.warning("Failed to build x402 payment requirements: %s", exc)
+            logger.warning("Failed to build payment requirements: %s", exc)
             headers = [(b"content-type", b"application/json")]
             body = json.dumps({"error": "Payment required but payment system unavailable"}).encode()
 
