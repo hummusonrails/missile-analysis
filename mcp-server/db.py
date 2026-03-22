@@ -85,24 +85,29 @@ async def fetch_alerts(start_ts: int, end_ts: int) -> list[dict]:
 async def resolve_city_name(name: str) -> list[str]:
     """Resolve an English or partial city name to Hebrew zone names.
 
-    Poke sends English names like 'Modiin' or 'Modi'in'. This looks up
-    matching Hebrew zone names from city_coords via case-insensitive
-    English name search.
+    Poke sends English names like 'Modiin' or "Modi'in". This strips
+    apostrophes from both the search term and the DB column so all
+    transliteration variants match (Modiin, Modi'in, Modi\u2019in, etc.).
 
-    Returns a list of matching Hebrew city names, or the original name
-    wrapped in a list if no match is found.
+    Returns a deduplicated list of matching Hebrew city names, or the
+    original name wrapped in a list if no match is found.
     """
+    # Strip all apostrophe variants for matching
+    stripped = name.replace("'", "").replace("\u2019", "").replace("`", "")
+
+    # Search English names with apostrophes stripped on both sides
     stmt = {
-        "sql": "SELECT city_name FROM city_coords WHERE city_name_en LIKE ? COLLATE NOCASE",
-        "args": [{"type": "text", "value": f"%{name}%"}],
+        "sql": "SELECT DISTINCT city_name FROM city_coords WHERE REPLACE(REPLACE(REPLACE(city_name_en, '''', ''), '\u2019', ''), '`', '') LIKE ? COLLATE NOCASE",
+        "args": [{"type": "text", "value": f"%{stripped}%"}],
     }
     data = await _execute([stmt])
     rows = parse_turso_response(data)
     if rows:
         return [r["city_name"] for r in rows]
-    # Also try Hebrew name match
+
+    # Fallback: try Hebrew name match
     stmt2 = {
-        "sql": "SELECT city_name FROM city_coords WHERE city_name LIKE ?",
+        "sql": "SELECT DISTINCT city_name FROM city_coords WHERE city_name LIKE ?",
         "args": [{"type": "text", "value": f"%{name}%"}],
     }
     data2 = await _execute([stmt2])
