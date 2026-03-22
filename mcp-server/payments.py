@@ -1,4 +1,5 @@
 """Payment access control for SirenWise MCP server."""
+import json
 import logging
 import os
 import time
@@ -91,5 +92,83 @@ async def check_access(tool_name: str):
         await db_write.log_usage(token[:8], tool_name, "api_key")
         return
 
-    # No valid auth
-    raise ValueError("Authentication required. Get an API key at https://sirenwise.com/developer")
+    # x402 payment path — check for payment in MCP _meta
+    x402_payment = _extract_x402_payment(request)
+    if x402_payment is not None:
+        await _verify_and_settle_x402(x402_payment, tool_name)
+        return
+
+    # MPP payment path — check for payment in MCP _meta
+    mpp_credential = _extract_mpp_credential(request)
+    if mpp_credential is not None:
+        await _verify_mpp(mpp_credential, tool_name)
+        return
+
+    # No valid auth — list all payment options
+    raise ValueError(
+        "Authentication required. Options:\n"
+        "1. API key: https://sirenwise.com/developer\n"
+        "2. x402: Pay per request with USDC on Arbitrum\n"
+        "3. MPP: Pay per request via Tempo stablecoins"
+    )
+
+
+def _extract_x402_payment(request) -> dict | None:
+    """Extract x402 payment payload from the raw MCP JSON-RPC body.
+
+    The x402 SDK sends the payment in the MCP request's _meta field under the
+    key "x402/payment". FastMCP does not expose _meta directly on the request
+    object, so we parse the raw body manually.
+    """
+    try:
+        body = getattr(request, "_body", None)
+        if body is None:
+            # Try reading the body bytes if it's a Starlette Request
+            return None
+        if isinstance(body, (bytes, bytearray)):
+            body = body.decode()
+        data = json.loads(body)
+        meta = data.get("params", {}).get("_meta", {}) or {}
+        payment = meta.get("x402/payment")
+        if payment:
+            return payment if isinstance(payment, dict) else json.loads(payment)
+    except Exception:
+        pass
+    return None
+
+
+async def _verify_and_settle_x402(payment_data: dict, tool_name: str) -> None:
+    """Verify and settle an x402 payment payload.
+
+    Raises ValueError with a user-facing message if payment is invalid.
+    Logs usage on success.
+    """
+    try:
+        import x402_handler
+        from x402.schemas.payments import PaymentPayload
+
+        resource_server = x402_handler.get_resource_server()
+        requirements = x402_handler.get_payment_requirements()
+
+        payload = PaymentPayload.model_validate(payment_data)
+
+        verify_result = await resource_server.verify_payment(payload, requirements)
+        if not verify_result.is_valid:
+            reason = verify_result.invalid_reason or "unknown"
+            logger.warning("x402 payment verification failed for %s: %s", tool_name, reason)
+            raise ValueError("Payment verification failed")
+
+        settle_result = await resource_server.settle_payment(payload, requirements)
+        if not settle_result.success:
+            reason = settle_result.error_reason or "unknown"
+            logger.warning("x402 payment settlement failed for %s: %s", tool_name, reason)
+            raise ValueError("Payment settlement failed")
+
+        logger.info("x402 payment settled for tool %s", tool_name)
+        await db_write.log_usage("x402", tool_name, "x402")
+
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.exception("x402 payment processing error for %s: %s", tool_name, exc)
+        raise ValueError("Payment processing error") from exc
