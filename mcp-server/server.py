@@ -9,9 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_request
 
 import db
+import payments
 from config import DEFAULT_CITY, TIMEZONE, DEFAULT_CLUSTER_WINDOW_MINUTES
 from analysis import (
     compute_daily_context,
@@ -24,24 +24,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 logger = logging.getLogger("sirenwise-mcp")
 
 _tz = zoneinfo.ZoneInfo(TIMEZONE)
-
-# --- Auth (tunnel-mode permissive) ---
-def validate_api_key():
-    """Validate API key if provided. In tunnel mode, requests come without tokens
-    since the tunnel itself is the auth boundary (localhost-only, outbound tunnel,
-    only authenticated Poke account can route requests)."""
-    expected = os.environ.get("MCP_API_KEY")
-    if not expected:
-        return
-    request = get_http_request()
-    auth = request.headers.get("authorization", "")
-    if not auth:
-        return  # Tunnel mode — server is localhost-only
-    if not auth.startswith("Bearer "):
-        raise ValueError("Unauthorized")
-    token = auth.split("Bearer ", 1)[1].strip()
-    if token != expected:
-        raise ValueError("Unauthorized")
 
 # --- MCP App ---
 mcp = FastMCP(
@@ -72,7 +54,7 @@ async def get_daily_context(
     region_id: str | None = None,
     nationwide: bool = False,
 ) -> str:
-    validate_api_key()
+    await payments.check_access("get_daily_context")
     cities_filter = await _resolve_filter(city, region_id, nationwide)
     today = date.today()
     today_dt = datetime(today.year, today.month, today.day, tzinfo=_tz)
@@ -88,7 +70,7 @@ async def get_sleep_impact(
     region_id: str | None = None,
     nationwide: bool = False,
 ) -> str:
-    validate_api_key()
+    await payments.check_access("get_sleep_impact")
     cities_filter = await _resolve_filter(city, region_id, nationwide)
     night_date = date.fromisoformat(date_str) if date_str else date.today()
     start_dt = datetime(night_date.year, night_date.month, night_date.day, tzinfo=_tz) - timedelta(days=8)
@@ -104,7 +86,7 @@ async def get_clustering(
     region_id: str | None = None,
     nationwide: bool = False,
 ) -> str:
-    validate_api_key()
+    await payments.check_access("get_clustering")
     cities_filter = await _resolve_filter(city, region_id, nationwide)
     target_date = date.fromisoformat(date_str) if date_str else date.today()
     day_start = datetime(target_date.year, target_date.month, target_date.day, tzinfo=_tz)
@@ -118,7 +100,7 @@ async def get_streak(
     region_id: str | None = None,
     nationwide: bool = False,
 ) -> str:
-    validate_api_key()
+    await payments.check_access("get_streak")
     cities_filter = await _resolve_filter(city, region_id, nationwide)
     today = date.today()
     month_ago = datetime(today.year, today.month, today.day, tzinfo=_tz) - timedelta(days=30)
