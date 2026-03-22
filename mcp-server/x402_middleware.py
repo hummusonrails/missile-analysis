@@ -94,17 +94,19 @@ class X402PaymentMiddleware:
             challenge_id = secrets.token_urlsafe(16)
             expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            # Tempo mainnet USDC address and chain ID
-            TEMPO_USDC = "0x20C000000000000000000000b9537d11c60E8b50"
-            TEMPO_CHAIN_ID = 4217
+            # Tempo testnet PathUSD for now (mainnet USDC requires token init)
+            # TODO: Switch to mainnet USDC once Tempo mainnet token init is resolved
+            TEMPO_PATH_USD = "0x20c0000000000000000000000000000000000000"
+            TEMPO_CHAIN_ID = 42431  # Testnet (Moderato)
             tempo_recipient = os.environ.get("TEMPO_PAY_TO_ADDRESS", single_req["payTo"])
 
             mpp_request = {
-                "amount": "10000",  # 0.01 USDC in base units (6 decimals)
-                "currency": TEMPO_USDC,
+                "amount": "10000",  # 0.01 PathUSD in base units (6 decimals)
+                "currency": TEMPO_PATH_USD,
                 "recipient": tempo_recipient,
                 "methodDetails": {
                     "chainId": TEMPO_CHAIN_ID,
+                    "feePayer": True,
                 },
             }
             mpp_request_b64 = base64.b64encode(json.dumps(mpp_request).encode()).decode()
