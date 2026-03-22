@@ -1,9 +1,82 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { CheckoutButton } from "./CheckoutButton";
 
+type ModalId = "x402" | "mpp" | null;
+
+function PaymentModal({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-xl bg-bg-elevated border border-border rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const X402_CODE = `import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
+
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+const response = await paidFetch("https://mcp.sirenwise.com/mcp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: { name: "get_daily_context", arguments: { city: "Tel Aviv" } },
+    id: 1,
+  }),
+});`;
+
+const MPP_CODE = `import Mppx from "mppx";
+
+const client = Mppx.create({
+  methods: [{
+    name: "tempo",
+    privateKey: process.env.TEMPO_PRIVATE_KEY,
+    chainId: 4217,
+    rpcUrl: "https://rpc.tempo.xyz",
+  }],
+});
+
+const response = await client.fetch("https://mcp.sirenwise.com/mcp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: { name: "get_streak", arguments: { city: "Beer Sheva" } },
+    id: 1,
+  }),
+});`;
+
 export default function DeveloperPage() {
+  const [openModal, setOpenModal] = useState<ModalId>(null);
+
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary">
       {/* Branded header */}
@@ -33,42 +106,62 @@ export default function DeveloperPage() {
           <p className="text-text-secondary mb-5 text-sm">Flat rate for all tools. No subscriptions.</p>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Stripe */}
-            <div className="bg-bg-surface border border-border rounded-lg p-4">
-              <h3 className="font-mono text-sm font-semibold text-accent-blue mb-2">API Key</h3>
-              <p className="text-xs text-text-tertiary mb-4">
-                Buy credits via Stripe. Use your key with any MCP client.
-              </p>
-              <CheckoutButton />
+            {/* Stripe / API Key */}
+            <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col gap-3">
+              <div>
+                <span className="inline-block text-xs font-mono font-semibold text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded mb-2">
+                  API Key
+                </span>
+                <h3 className="font-semibold text-sm text-text-primary">Pay with Stripe</h3>
+                <p className="text-xs text-text-tertiary mt-1">
+                  Buy credits via Stripe. Use your key with any MCP client.
+                </p>
+              </div>
+              <div className="mt-auto">
+                <CheckoutButton />
+              </div>
             </div>
 
             {/* x402 */}
-            <div className="bg-bg-surface border border-border rounded-lg p-4">
-              <h3 className="font-mono text-sm font-semibold text-accent-amber mb-2">x402 (Arbitrum USDC)</h3>
-              <p className="text-xs text-text-tertiary mb-3">
-                Pay per request with USDC on Arbitrum One. No API key needed. Permissionless.
-              </p>
-              <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary px-2 py-1.5 rounded overflow-x-auto">
-{`import { wrapFetchWithPayment } from "@x402/fetch"
-import { registerExactEvmScheme } from "@x402/evm/exact/client"
-
-// Wraps fetch to handle 402 → pay → retry
-const paidFetch = wrapFetchWithPayment(fetch, client)`}
-              </pre>
+            <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col gap-3">
+              <div>
+                <span className="inline-block text-xs font-mono font-semibold text-accent-amber bg-accent-amber/10 px-2 py-0.5 rounded mb-2">
+                  x402
+                </span>
+                <h3 className="font-semibold text-sm text-text-primary">Pay with USDC</h3>
+                <p className="text-xs text-text-tertiary mt-1">
+                  Pay per request with USDC on Arbitrum One. No API key needed.
+                </p>
+              </div>
+              <div className="mt-auto">
+                <button
+                  onClick={() => setOpenModal("x402")}
+                  className="w-full text-sm font-medium text-accent-amber border border-accent-amber/40 bg-accent-amber/5 hover:bg-accent-amber/10 rounded-lg px-4 py-2 transition-colors"
+                >
+                  View Integration Guide
+                </button>
+              </div>
             </div>
 
             {/* MPP */}
-            <div className="bg-bg-surface border border-border rounded-lg p-4">
-              <h3 className="font-mono text-sm font-semibold text-accent-green mb-2">MPP (Tempo)</h3>
-              <p className="text-xs text-text-tertiary mb-3">
-                Machine payments via Tempo stablecoins. Built on the Machine Payments Protocol by Stripe &amp; Tempo.
-              </p>
-              <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary px-2 py-1.5 rounded overflow-x-auto">
-{`import Mppx from "mppx"
-
-// mppx.fetch handles 402 challenge flow
-const client = Mppx.create({ methods: [tempo()] })`}
-              </pre>
+            <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col gap-3">
+              <div>
+                <span className="inline-block text-xs font-mono font-semibold text-accent-green bg-accent-green/10 px-2 py-0.5 rounded mb-2">
+                  MPP
+                </span>
+                <h3 className="font-semibold text-sm text-text-primary">Pay via Tempo</h3>
+                <p className="text-xs text-text-tertiary mt-1">
+                  Machine payments via Tempo stablecoins. Built on MPP by Stripe &amp; Tempo.
+                </p>
+              </div>
+              <div className="mt-auto">
+                <button
+                  onClick={() => setOpenModal("mpp")}
+                  className="w-full text-sm font-medium text-accent-green border border-accent-green/40 bg-accent-green/5 hover:bg-accent-green/10 rounded-lg px-4 py-2 transition-colors"
+                >
+                  View Integration Guide
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -141,6 +234,151 @@ const client = Mppx.create({ methods: [tempo()] })`}
       <footer className="border-t border-border mt-8 px-6 py-4 text-center text-xs text-text-tertiary">
         © {new Date().getFullYear()} SirenWise — Real-time missile alert intelligence
       </footer>
+
+      {/* x402 Modal */}
+      <PaymentModal open={openModal === "x402"} onClose={() => setOpenModal(null)}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <span className="inline-block text-xs font-mono font-semibold text-accent-amber bg-accent-amber/10 px-2 py-0.5 rounded mb-2">
+              x402
+            </span>
+            <h2 className="text-lg font-semibold text-text-primary">Pay with USDC on Arbitrum</h2>
+          </div>
+          <button
+            onClick={() => setOpenModal(null)}
+            className="text-text-tertiary hover:text-text-secondary transition-colors ml-4 mt-0.5"
+            aria-label="Close modal"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p className="text-sm text-text-secondary mb-5">
+          The x402 protocol uses HTTP 402 Payment Required responses to enable per-request payments. When your client
+          hits the SirenWise endpoint, it receives a payment challenge, settles the payment on Arbitrum using USDC,
+          and retries the request automatically. No API key or account needed — just a funded wallet. The{" "}
+          <code className="text-accent-amber">@x402/fetch</code> library handles the entire challenge–pay–retry
+          flow for you.
+        </p>
+
+        <div className="mb-4">
+          <p className="text-xs text-text-tertiary mb-1.5">Install</p>
+          <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-2.5 rounded-lg overflow-x-auto">
+            npm install @x402/fetch @x402/evm viem
+          </pre>
+        </div>
+
+        <div className="mb-5">
+          <p className="text-xs text-text-tertiary mb-1.5">Integration example</p>
+          <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-3 rounded-lg overflow-x-auto leading-relaxed">
+            {X402_CODE}
+          </pre>
+        </div>
+
+        <div className="mb-5 bg-bg-primary rounded-lg px-4 py-3 text-xs space-y-1">
+          <p className="text-text-tertiary font-medium mb-1.5">Network</p>
+          <p className="text-text-secondary">
+            <span className="text-text-tertiary">Chain:</span> Arbitrum One (Chain ID: 42161)
+          </p>
+          <p className="text-text-secondary">
+            <span className="text-text-tertiary">USDC contract:</span>{" "}
+            <code className="text-accent-amber text-[11px]">0xaf88d065e77c8cC2239327C5EDb3A432268e5831</code>
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <a
+            href="https://docs.x402.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-amber hover:underline"
+          >
+            x402 Documentation →
+          </a>
+          <a
+            href="https://arbiscan.io/token/0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-amber hover:underline"
+          >
+            Arbitrum USDC →
+          </a>
+        </div>
+      </PaymentModal>
+
+      {/* MPP Modal */}
+      <PaymentModal open={openModal === "mpp"} onClose={() => setOpenModal(null)}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <span className="inline-block text-xs font-mono font-semibold text-accent-green bg-accent-green/10 px-2 py-0.5 rounded mb-2">
+              MPP
+            </span>
+            <h2 className="text-lg font-semibold text-text-primary">Machine Payments via Tempo</h2>
+          </div>
+          <button
+            onClick={() => setOpenModal(null)}
+            className="text-text-tertiary hover:text-text-secondary transition-colors ml-4 mt-0.5"
+            aria-label="Close modal"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p className="text-sm text-text-secondary mb-5">
+          The Machine Payments Protocol (MPP), developed by Stripe and Tempo, is an open standard for autonomous
+          agent-to-service payments. Tempo provides a stablecoin network optimised for machine-speed settlement.
+          The <code className="text-accent-green">mppx</code> client library handles the full 402 challenge flow,
+          letting your agent pay for each SirenWise request without any pre-registration or API keys.
+        </p>
+
+        <div className="mb-4">
+          <p className="text-xs text-text-tertiary mb-1.5">Install</p>
+          <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-2.5 rounded-lg overflow-x-auto">
+            npm install mppx
+          </pre>
+        </div>
+
+        <div className="mb-5">
+          <p className="text-xs text-text-tertiary mb-1.5">Integration example</p>
+          <pre className="text-xs font-mono text-text-secondary bg-bg-primary px-3 py-3 rounded-lg overflow-x-auto leading-relaxed">
+            {MPP_CODE}
+          </pre>
+        </div>
+
+        <div className="mb-5 bg-bg-primary rounded-lg px-4 py-3 text-xs space-y-1">
+          <p className="text-text-tertiary font-medium mb-1.5">Network</p>
+          <p className="text-text-secondary">
+            <span className="text-text-tertiary">Chain:</span> Tempo Mainnet (Chain ID: 4217)
+          </p>
+          <p className="text-text-secondary">
+            <span className="text-text-tertiary">RPC:</span>{" "}
+            <code className="text-accent-green text-[11px]">https://rpc.tempo.xyz</code>
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <a
+            href="https://mpp.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-green hover:underline"
+          >
+            MPP Documentation →
+          </a>
+          <a
+            href="https://tempo.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent-green hover:underline"
+          >
+            Tempo →
+          </a>
+        </div>
+      </PaymentModal>
     </div>
   );
 }
