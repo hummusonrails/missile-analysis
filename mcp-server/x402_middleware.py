@@ -63,11 +63,15 @@ class X402PaymentMiddleware:
         if auth_header and auth_header.startswith("Bearer "):
             return await self.app(scope, receive, send)
 
+        # Has MPP Payment credential → let payments.py verify it
+        if auth_header and auth_header.startswith("Payment "):
+            return await self.app(scope, receive, send)
+
         # Has x402 payment header → let payments.py verify it
         if x_payment:
             return await self.app(scope, receive, send)
 
-        # No auth, no payment → return HTTP 402 with x402 payment requirements
+        # No auth, no payment → return HTTP 402 with payment requirements
         return await self._send_402(send)
 
     async def _send_402(self, send):

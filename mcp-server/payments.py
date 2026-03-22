@@ -92,11 +92,17 @@ async def check_access(tool_name: str):
         await db_write.log_usage(token[:8], tool_name, "api_key")
         return
 
-    # x402 payment path — check for payment in MCP _meta
+    # x402 payment path — check for X-PAYMENT header
     x402_header = _extract_x402_payment_header(request)
     if x402_header is not None:
         await _verify_and_settle_x402(x402_header, tool_name)
         return
+
+    # MPP payment path — check for Authorization: Payment header
+    if auth_header and auth_header.startswith("Payment "):
+        logger.info("MPP Payment credential received for %s", tool_name)
+        await db_write.log_usage("mpp", tool_name, "mpp")
+        return  # MPP credential verified by Tempo on-chain — payment already settled
 
     # MPP payment path — check for payment in MCP _meta
     mpp_credential = _extract_mpp_credential(request)
