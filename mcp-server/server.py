@@ -50,11 +50,21 @@ mcp = FastMCP(
 )
 
 async def _resolve_filter(city, region_id, nationwide):
+    """Resolve city/region/nationwide params into a cities_filter value.
+
+    Handles English city names from Poke (e.g. 'Modiin', 'Modi'in', 'Tel Aviv')
+    by looking up matching Hebrew zone names in city_coords.
+    """
     if nationwide:
         return None
     if region_id:
         return await db.fetch_cities_for_region(region_id)
-    return city or DEFAULT_CITY
+    if not city:
+        return DEFAULT_CITY
+    # Poke sends English names — resolve to Hebrew zone names
+    resolved = await db.resolve_city_name(city)
+    logger.info(f"Resolved city '{city}' to {resolved}")
+    return resolved
 
 @mcp.tool(description="Compare today's alert activity against 7-day and 30-day averages. Shows if it's unusually quiet or ramping up.")
 async def get_daily_context(

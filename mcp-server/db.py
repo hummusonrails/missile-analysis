@@ -82,6 +82,36 @@ async def fetch_alerts(start_ts: int, end_ts: int) -> list[dict]:
     return results
 
 
+async def resolve_city_name(name: str) -> list[str]:
+    """Resolve an English or partial city name to Hebrew zone names.
+
+    Poke sends English names like 'Modiin' or 'Modi'in'. This looks up
+    matching Hebrew zone names from city_coords via case-insensitive
+    English name search.
+
+    Returns a list of matching Hebrew city names, or the original name
+    wrapped in a list if no match is found.
+    """
+    stmt = {
+        "sql": "SELECT city_name FROM city_coords WHERE city_name_en LIKE ? COLLATE NOCASE",
+        "args": [{"type": "text", "value": f"%{name}%"}],
+    }
+    data = await _execute([stmt])
+    rows = parse_turso_response(data)
+    if rows:
+        return [r["city_name"] for r in rows]
+    # Also try Hebrew name match
+    stmt2 = {
+        "sql": "SELECT city_name FROM city_coords WHERE city_name LIKE ?",
+        "args": [{"type": "text", "value": f"%{name}%"}],
+    }
+    data2 = await _execute([stmt2])
+    rows2 = parse_turso_response(data2)
+    if rows2:
+        return [r["city_name"] for r in rows2]
+    return [name]
+
+
 async def fetch_cities_for_region(region_id: str) -> list[str]:
     """Fetch all city names in a region. Cached in-memory after first call."""
     if region_id in _region_cache:
