@@ -21,6 +21,18 @@ export interface AnalyticsCacheEntry {
   params?: string;
 }
 
+export interface PreAlert {
+  id: string;
+  timestamp: number;
+  title_he: string;
+  body_he: string;
+  city_ids: number[];
+  regions: string[];
+  alert_type: "early_warning" | "exit_notification";
+  raw_data?: string;
+  created_at: number;
+}
+
 export type ThreatLevel = 0 | 1 | 2 | 3;
 export type TimeRange = "24h" | "7d" | "30d" | "custom";
 
