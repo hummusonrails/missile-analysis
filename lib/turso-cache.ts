@@ -45,3 +45,13 @@ export async function queryAlertsFeed(params: string): Promise<unknown> {
 export async function queryCityCoords(): Promise<unknown> {
   return fetchFromApi("/api/cities");
 }
+
+export async function queryPreAlerts(params: string): Promise<unknown> {
+  return fetchFromApi(`/api/pre-alerts?${params}`);
+}
+
+export async function queryPreAlertsFeed(params: string): Promise<unknown> {
+  const res = await fetch(`/api/pre-alerts?${params}`);
+  if (!res.ok) throw new Error(`API returned ${res.status}`);
+  return res.json();
+}

@@ -8,6 +8,7 @@ import { MapStats } from "./map/MapStats";
 import { BottomSheet } from "./map/BottomSheet";
 import { useFilterState, readInitialTab } from "../lib/hooks/use-filter-state";
 import { useAlerts } from "../lib/hooks/use-alerts";
+import { usePreAlerts } from "../lib/hooks/use-pre-alerts";
 import { useCityCoords } from "../lib/hooks/use-city-coords";
 import { useClientAnalytics } from "../lib/hooks/use-client-analytics";
 import { useFindings } from "../lib/hooks/use-findings";
@@ -44,6 +45,7 @@ export function AppShell() {
 
   const { filter, setTimeRange, setCustomRange, setRegion } = useFilterState(activeTab);
   const { alerts: allAlerts } = useAlerts(filter);
+  const { preAlerts } = usePreAlerts(filter);
   const { coords: cityCoords } = useCityCoords();
 
   // Filter alerts by region (client-side since cities are stored as JSON)
@@ -191,6 +193,7 @@ export function AppShell() {
             <div className="flex-1 relative overflow-hidden">
               <AlertMap
                 alerts={alerts}
+                preAlerts={preAlerts}
                 cityCoords={cityCoords}
                 onAlertSelect={setSelectedAlert}
               />
@@ -213,6 +216,7 @@ export function AppShell() {
         {activeTab === "analytics" && (
           <AnalyticsView
             alerts={alerts}
+            preAlerts={preAlerts}
             cityCoords={cityCoords}
             regionId={filter.regionId}
             onAskAI={aiAvailable ? handleAskAI : undefined}

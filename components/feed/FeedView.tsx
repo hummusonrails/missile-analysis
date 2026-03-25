@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAlertFeed } from "../../lib/hooks/use-alerts";
+import { usePreAlerts } from "../../lib/hooks/use-pre-alerts";
 import { useCityCoords } from "../../lib/hooks/use-city-coords";
 import { FeedSearch } from "./FeedSearch";
 import { FeedItem } from "./FeedItem";
-import type { Alert, FilterState } from "../../lib/types";
+import { PreAlertFeedItem } from "./PreAlertFeedItem";
+import type { Alert, PreAlert, FilterState } from "../../lib/types";
 import { useI18n } from "../../lib/i18n";
 
 interface FeedViewProps {
@@ -17,7 +19,9 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [showPreAlerts, setShowPreAlerts] = useState(true);
   const { alerts, loading, hasMore, loadMore } = useAlertFeed(filter);
+  const { preAlerts } = usePreAlerts(filter);
   const { coords: cityCoords } = useCityCoords();
   const { lang, t } = useI18n();
 
@@ -66,11 +70,49 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
     return true;
   });
 
+  // Merge alerts and pre-alerts into a unified chronological feed
+  type FeedEntry =
+    | { kind: "alert"; data: Alert }
+    | { kind: "pre_alert"; data: PreAlert };
+
+  const mergedFeed = useMemo(() => {
+    const entries: FeedEntry[] = filteredAlerts.map((a) => ({ kind: "alert" as const, data: a }));
+
+    if (showPreAlerts) {
+      for (const pa of preAlerts) {
+        // Region filter for pre-alerts
+        if (filter.regionId && pa.regions.length > 0) {
+          if (!pa.regions.includes(filter.regionId)) continue;
+        }
+        entries.push({ kind: "pre_alert" as const, data: pa });
+      }
+    }
+
+    entries.sort((a, b) => b.data.timestamp - a.data.timestamp);
+    return entries;
+  }, [filteredAlerts, preAlerts, showPreAlerts, filter.regionId]);
+
   return (
     <div className="h-full flex flex-col">
-      {/* Search bar */}
-      <div className="flex-shrink-0 pt-2">
+      {/* Search bar + pre-alert toggle */}
+      <div className="flex-shrink-0 pt-2 space-y-2">
         <FeedSearch value={searchQuery} onChange={setSearchQuery} />
+        {preAlerts.length > 0 && (
+          <div className="px-4">
+            <button
+              onClick={() => setShowPreAlerts((v) => !v)}
+              className={[
+                "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+                showPreAlerts
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                  : "bg-bg-surface text-text-tertiary border-border",
+              ].join(" ")}
+            >
+              {lang === "he" ? "התרעות מוקדמות" : "Pre-Alerts"}{" "}
+              ({preAlerts.length})
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Scrollable alert list */}
@@ -80,14 +122,21 @@ export function FeedView({ filter, onAlertTap }: FeedViewProps) {
         className="flex-1 overflow-y-auto"
       >
         <div className="px-4 pb-4 flex flex-col gap-2">
-          {filteredAlerts.map((alert) => (
-            <FeedItem
-              key={alert.id}
-              alert={alert}
-              cityCoords={cityCoords}
-              onTap={onAlertTap}
-            />
-          ))}
+          {mergedFeed.map((entry) =>
+            entry.kind === "alert" ? (
+              <FeedItem
+                key={entry.data.id}
+                alert={entry.data}
+                cityCoords={cityCoords}
+                onTap={onAlertTap}
+              />
+            ) : (
+              <PreAlertFeedItem
+                key={entry.data.id}
+                preAlert={entry.data}
+              />
+            )
+          )}
 
           {/* Loading indicator */}
           {loading && (

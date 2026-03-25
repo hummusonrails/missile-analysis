@@ -46,6 +46,28 @@ async function setupDatabase() {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS pre_alerts (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        title_he TEXT NOT NULL,
+        body_he TEXT NOT NULL,
+        city_ids TEXT,
+        regions TEXT,
+        alert_type TEXT NOT NULL,
+        raw_data TEXT,
+        created_at INTEGER NOT NULL
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_pre_alerts_timestamp ON pre_alerts(timestamp)`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_pre_alerts_type ON pre_alerts(alert_type)`,
+      args: [],
+    },
   ]);
 
   console.log("Database schema created successfully.");
