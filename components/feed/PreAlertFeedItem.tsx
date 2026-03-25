@@ -2,6 +2,7 @@
 
 import type { PreAlert } from "../../lib/types";
 import { useI18n } from "../../lib/i18n";
+import { translatePreAlertBody, translatePreAlertTitle } from "../../lib/pre-alert-translate";
 
 interface PreAlertFeedItemProps {
   preAlert: PreAlert;
@@ -81,10 +82,16 @@ export function PreAlertFeedItem({ preAlert }: PreAlertFeedItemProps) {
         </span>
       </div>
 
-      {/* Body text (always RTL since it's Hebrew) */}
-      <p className="text-[12px] text-text-primary mb-2.5 leading-relaxed" dir="rtl">
-        {preAlert.body_he}
-      </p>
+      {/* Body text */}
+      {isHe ? (
+        <p className="text-[12px] text-text-primary mb-2.5 leading-relaxed" dir="rtl">
+          {preAlert.body_he}
+        </p>
+      ) : (
+        <p className="text-[12px] text-text-primary mb-2.5 leading-relaxed">
+          {translatePreAlertBody(preAlert.body_he)}
+        </p>
+      )}
 
       {/* Region chips */}
       {preAlert.regions.length > 0 ? (
