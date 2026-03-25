@@ -45,17 +45,72 @@ const db = createDb();
 
 // --- City ID → Region mapping ---
 
+// Tzofar area codes → SirenWise region IDs (from fill-missing-cities.ts)
+const AREA_TO_REGION: Record<number, string> = {
+  1: "upper-galilee",
+  2: "negev",
+  3: "shfela",
+  4: "lower-galilee",
+  5: "jezreel-valley",
+  6: "upper-galilee",
+  7: "shfela",
+  9: "sharon",
+  10: "golan-heights",
+  11: "yehuda-vshomron",
+  12: "negev",
+  13: "gaza-envelope",
+  14: "yehuda-vshomron",
+  15: "jezreel-valley",
+  16: "lower-galilee",
+  17: "negev",
+  18: "tel-aviv-gush-dan",
+  19: "haifa-krayot",
+  20: "tel-aviv-gush-dan",
+  21: "ashkelon-coast",
+  22: "haifa-krayot",
+  23: "shfela",
+  24: "negev",
+  25: "jezreel-valley",
+  26: "eilat-arava",
+  27: "eilat-arava",
+  28: "golan-heights",
+  29: "yehuda-vshomron",
+  32: "jerusalem",
+  34: "jezreel-valley",
+};
+
 let cityIdToRegion: Map<number, string> | null = null;
 
+const TZOFAR_CITIES_URL = "https://www.tzevaadom.co.il/static/cities.json";
+
+interface TzofarCity {
+  id: number;
+  he: string;
+  en: string;
+  area: number;
+  lat: number;
+  lng: number;
+}
+
 async function loadCityIdMapping(): Promise<void> {
-  // Tzofar uses numeric city IDs. We need to map them to our region IDs.
-  // Our city_coords table uses Hebrew names, not numeric IDs.
-  // For now, we store the raw city_ids and resolve regions later
-  // when the city_coords table gets a tzofar_id column.
-  // This is a known gap — regions will be populated as empty until
-  // we add the mapping.
-  cityIdToRegion = new Map();
-  console.log("[bridge] City ID mapping initialized (region resolution deferred)");
+  try {
+    const res = await fetch(TZOFAR_CITIES_URL);
+    const data = await res.json();
+    const cities = data.cities as Record<string, TzofarCity>;
+
+    cityIdToRegion = new Map();
+    for (const city of Object.values(cities)) {
+      const region = AREA_TO_REGION[city.area];
+      if (region) {
+        cityIdToRegion.set(city.id, region);
+      }
+    }
+
+    console.log(`[bridge] Loaded ${cityIdToRegion.size} city ID → region mappings`);
+  } catch (err) {
+    console.error("[bridge] Failed to load city mapping, regions will be empty:", err);
+    cityIdToRegion = new Map();
+  }
 }
 
 // --- WebSocket message types ---
@@ -194,9 +249,18 @@ function connect(): void {
   });
 
   ws.on("message", async (raw) => {
-    try {
-      const msg: WsMessage = JSON.parse(raw.toString());
+    const text = raw.toString().trim();
+    if (!text || text.length < 2) return; // skip empty keepalive frames
 
+    let msg: WsMessage;
+    try {
+      msg = JSON.parse(text);
+    } catch {
+      // Not JSON — likely a ping/pong text frame, skip silently
+      return;
+    }
+
+    try {
       if (msg.type === "SYSTEM_MESSAGE" && msg.data) {
         await handleSystemMessage(msg.data);
       }
