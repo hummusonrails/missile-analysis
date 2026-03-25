@@ -183,6 +183,7 @@ export function AppShell() {
               regionCount={regionCount}
               lastAlertMinutes={lastAlertMinutes}
               timeRange={filter.timeRange}
+              preAlerts={preAlerts}
             />
 
             {analytics && (
@@ -198,7 +199,7 @@ export function AppShell() {
                 onAlertSelect={setSelectedAlert}
               />
 
-              <MapLegend activeThreatTypes={activeThreatTypes} />
+              <MapLegend activeThreatTypes={activeThreatTypes} preAlertCount={preAlerts.filter((pa) => pa.alert_type === "early_warning").length} />
 
               {/* Bottom sheet */}
               {selectedAlert && (

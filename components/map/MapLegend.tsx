@@ -14,17 +14,18 @@ const THREAT_LABELS: Record<number, string> = {
 
 interface MapLegendProps {
   activeThreatTypes: Set<number>;
+  preAlertCount: number;
 }
 
-export function MapLegend({ activeThreatTypes }: MapLegendProps) {
+export function MapLegend({ activeThreatTypes, preAlertCount }: MapLegendProps) {
   const { t } = useI18n();
 
-  if (activeThreatTypes.size === 0) return null;
+  if (activeThreatTypes.size === 0 && preAlertCount === 0) return null;
 
   const entries = Array.from(activeThreatTypes)
     .sort((a, b) => a - b)
     .map((id) => ({
-      id,
+      id: String(id),
       color: THREAT_COLORS[id] ?? "#6B7280",
       label: t(THREAT_LABELS[id] ?? "threat.type.unknown"),
     }));
@@ -42,6 +43,17 @@ export function MapLegend({ activeThreatTypes }: MapLegendProps) {
           </span>
         </div>
       ))}
+      {preAlertCount > 0 && (
+        <div className="flex items-center gap-1">
+          <span
+            className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0 border border-amber-400/50 animate-pulse"
+            style={{ backgroundColor: "#F59E0B" }}
+          />
+          <span className="text-[9px] text-amber-300 font-medium whitespace-nowrap">
+            {t("prealert.earlyWarning")} ({preAlertCount})
+          </span>
+        </div>
+      )}
     </div>
   );
 }
