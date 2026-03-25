@@ -30,23 +30,35 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const result = await db.execute({
-    sql: `SELECT id, timestamp, title_he, body_he, city_ids, regions, alert_type, created_at
-          FROM pre_alerts ${where}
-          ORDER BY timestamp DESC LIMIT ?`,
-    args: [...args, limit],
-  });
+  let preAlerts: Array<Record<string, unknown>> = [];
 
-  const preAlerts = result.rows.map((r) => ({
-    id: r.id as string,
-    timestamp: r.timestamp as number,
-    title_he: r.title_he as string,
-    body_he: r.body_he as string,
-    city_ids: JSON.parse((r.city_ids as string) || "[]"),
-    regions: JSON.parse((r.regions as string) || "[]"),
-    alert_type: r.alert_type as string,
-    created_at: r.created_at as number,
-  }));
+  try {
+    const result = await db.execute({
+      sql: `SELECT id, timestamp, title_he, body_he, city_ids, regions, alert_type, created_at
+            FROM pre_alerts ${where}
+            ORDER BY timestamp DESC LIMIT ?`,
+      args: [...args, limit],
+    });
+
+    preAlerts = result.rows.map((r) => ({
+      id: r.id as string,
+      timestamp: r.timestamp as number,
+      title_he: r.title_he as string,
+      body_he: r.body_he as string,
+      city_ids: JSON.parse((r.city_ids as string) || "[]"),
+      regions: JSON.parse((r.regions as string) || "[]"),
+      alert_type: r.alert_type as string,
+      created_at: r.created_at as number,
+    }));
+  } catch (err: unknown) {
+    // Gracefully handle missing table (pre-migration state)
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("no such table")) {
+      preAlerts = [];
+    } else {
+      throw err;
+    }
+  }
 
   return NextResponse.json(preAlerts, {
     headers: {
