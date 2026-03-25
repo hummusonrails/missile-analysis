@@ -49,6 +49,12 @@ export interface AnalyticsPanel {
   labelHe: string;
 }
 
+export const PRE_ALERT_PANEL: AnalyticsPanel = {
+  key: "pre_alert_summary",
+  labelEn: "Pre-Alerts",
+  labelHe: "התרעות מוקדמות",
+};
+
 export const ANALYTICS_PANELS: AnalyticsPanel[] = [
   { key: "shabbat_vs_weekday", labelEn: "Shabbat vs Weekday", labelHe: "שבת מול ימי חול" },
   { key: "hourly_histogram", labelEn: "Hourly Pattern", labelHe: "דפוס שעתי" },

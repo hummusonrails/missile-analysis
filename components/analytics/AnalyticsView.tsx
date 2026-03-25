@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ANALYTICS_PANELS } from "../../lib/types";
-import type { Alert, CityCoord } from "../../lib/types";
+import { ANALYTICS_PANELS, PRE_ALERT_PANEL } from "../../lib/types";
+import type { Alert, PreAlert, CityCoord } from "../../lib/types";
 import { useClientAnalytics } from "../../lib/hooks/use-client-analytics";
+import { usePreAlertAnalytics } from "../../lib/hooks/use-pre-alert-analytics";
 import { useI18n } from "../../lib/i18n";
 import { AnalyticsCard } from "./AnalyticsCard";
 import { METHODOLOGIES } from "../../lib/methodology";
@@ -11,6 +12,7 @@ import { AIPromptBar } from "../ai/AIPromptBar";
 
 interface AnalyticsViewProps {
   alerts: Alert[];
+  preAlerts: PreAlert[];
   cityCoords: Map<string, CityCoord>;
   regionId: string | null;
   onAskAI?: (question: string) => void;
@@ -18,9 +20,10 @@ interface AnalyticsViewProps {
 
 const DEFAULT_PANELS = new Set(["shabbat_vs_weekday", "hourly_histogram", "morning_vs_evening", "day_of_week"]);
 
-export function AnalyticsView({ alerts, cityCoords, regionId, onAskAI }: AnalyticsViewProps) {
+export function AnalyticsView({ alerts, preAlerts, cityCoords, regionId, onAskAI }: AnalyticsViewProps) {
   const [activePanels, setActivePanels] = useState<Set<string>>(DEFAULT_PANELS);
   const analytics = useClientAnalytics(alerts, cityCoords);
+  const preAlertAnalytics = usePreAlertAnalytics(alerts, preAlerts, cityCoords);
   const { lang } = useI18n();
   const isHe = lang === "he";
 
@@ -58,6 +61,19 @@ export function AnalyticsView({ alerts, cityCoords, regionId, onAskAI }: Analyti
 
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+          {preAlertAnalytics && (
+            <button
+              key={PRE_ALERT_PANEL.key}
+              onClick={() => togglePanel(PRE_ALERT_PANEL.key)}
+              className={`flex-shrink-0 text-[11px] font-mono font-medium px-3 py-1.5 rounded-full border transition-all ${
+                activePanels.has(PRE_ALERT_PANEL.key)
+                  ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                  : "bg-bg-surface border-border text-text-tertiary hover:text-text-secondary hover:border-border-active"
+              }`}
+            >
+              {isHe ? PRE_ALERT_PANEL.labelHe : PRE_ALERT_PANEL.labelEn}
+            </button>
+          )}
           {ANALYTICS_PANELS.map((panel) => (
             <button
               key={panel.key}
@@ -81,6 +97,100 @@ export function AnalyticsView({ alerts, cityCoords, regionId, onAskAI }: Analyti
           </div>
         ) : (
           <>
+            {activePanels.has("pre_alert_summary") && preAlertAnalytics && (
+              <AnalyticsCard
+                title={isHe ? "סיכום התרעות מוקדמות" : "Pre-Alert Summary"}
+                badge={preAlertAnalytics.avgLeadTimeMinutes !== null
+                  ? { label: `${preAlertAnalytics.avgLeadTimeMinutes}m ${isHe ? "ממוצע" : "avg lead"}`, direction: "neutral" as const }
+                  : undefined}
+              >
+                <div className="flex gap-2 px-4 py-3">
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">
+                      {isHe ? "אזהרות" : "Warnings"}
+                    </div>
+                    <div className="font-mono text-2xl font-bold text-amber-400 tracking-tight">
+                      {preAlertAnalytics.totalWarnings}
+                    </div>
+                  </div>
+                  <div className="w-px bg-border my-1" />
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">
+                      {isHe ? "סיומי אירוע" : "All-Clears"}
+                    </div>
+                    <div className="font-mono text-2xl font-bold text-emerald-400 tracking-tight">
+                      {preAlertAnalytics.totalExits}
+                    </div>
+                  </div>
+                  <div className="w-px bg-border my-1" />
+                  <div className="flex-1 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-text-tertiary font-medium mb-1.5">
+                      {isHe ? "ממוצע הקדמה" : "Avg Lead"}
+                    </div>
+                    <div className="font-mono text-2xl font-bold text-accent-blue tracking-tight">
+                      {preAlertAnalytics.avgLeadTimeMinutes !== null ? `${preAlertAnalytics.avgLeadTimeMinutes}m` : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                {preAlertAnalytics.coveragePercent !== null && (
+                  <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-text-secondary">{isHe ? "כיסוי אזהרות" : "Warning coverage"}</span>
+                      <span className="text-[10px] font-mono text-amber-400">{preAlertAnalytics.coveragePercent}%</span>
+                    </div>
+                    <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500/60 rounded-full"
+                        style={{ width: `${preAlertAnalytics.coveragePercent}%` }}
+                      />
+                    </div>
+                    <div className="text-[9px] text-text-tertiary mt-1">
+                      {isHe
+                        ? "אחוז אירועי הצפירה שקדמה להם התרעה מוקדמת"
+                        : "% of siren events preceded by a pre-alert warning"}
+                    </div>
+                  </div>
+                )}
+
+                {preAlertAnalytics.leadTimes.length > 0 && (
+                  <div className="px-4 pb-3">
+                    <div className="text-[10px] text-text-secondary mb-2">{isHe ? "התפלגות זמני הקדמה (דקות)" : "Lead time distribution (min)"}</div>
+                    <div className="flex items-end gap-[3px] h-12">
+                      {(() => {
+                        const buckets = [0, 0, 0, 0, 0]; // 0-5, 5-10, 10-15, 15-20, 20+
+                        const labels = ["0-5", "5-10", "10-15", "15-20", "20+"];
+                        for (const lt of preAlertAnalytics.leadTimes) {
+                          if (lt < 5) buckets[0]++;
+                          else if (lt < 10) buckets[1]++;
+                          else if (lt < 15) buckets[2]++;
+                          else if (lt < 20) buckets[3]++;
+                          else buckets[4]++;
+                        }
+                        const max = Math.max(...buckets, 1);
+                        return buckets.map((count, i) => (
+                          <div key={labels[i]} className="flex-1 flex flex-col items-center gap-0.5">
+                            <div
+                              className="w-full rounded-t-sm bg-amber-500/60"
+                              style={{ height: `${Math.max(3, (count / max) * 100)}%` }}
+                            />
+                            <span className="text-[7px] font-mono text-text-tertiary">{labels[i]}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mx-4 mb-3.5 p-3 bg-amber-500/5 border border-amber-500/10 rounded-[10px] text-[12px] text-text-secondary leading-relaxed">
+                  {isHe
+                    ? <>נרשמו <strong className="text-amber-400 font-semibold">{preAlertAnalytics.totalWarnings} אזהרות מוקדמות</strong> ו-<strong className="text-emerald-400 font-semibold">{preAlertAnalytics.totalExits} הודעות סיום</strong> בטווח הנבחר.{preAlertAnalytics.avgLeadTimeMinutes !== null && <> ממוצע ההקדמה לפני הצפירה הוא <strong className="text-accent-blue font-semibold">{preAlertAnalytics.avgLeadTimeMinutes} דקות</strong>.</>}</>
+                    : <><strong className="text-amber-400 font-semibold">{preAlertAnalytics.totalWarnings} early warnings</strong> and <strong className="text-emerald-400 font-semibold">{preAlertAnalytics.totalExits} all-clears</strong> recorded in this period.{preAlertAnalytics.avgLeadTimeMinutes !== null && <> Average warning lead time before sirens: <strong className="text-accent-blue font-semibold">{preAlertAnalytics.avgLeadTimeMinutes} minutes</strong>.</>}</>
+                  }
+                </div>
+              </AnalyticsCard>
+            )}
+
             {activePanels.has("shabbat_vs_weekday") && (
               <AnalyticsCard title={isHe ? "שבת מול ימי חול" : "Shabbat vs Weekday"} methodology={METHODOLOGIES.shabbat_vs_weekday} badge={{ label: `${analytics.shabbat_vs_weekday.multiplier}x`, direction: analytics.shabbat_vs_weekday.multiplier > 1 ? "up" : "down" }}>
                 <div className="flex gap-2 px-4 py-3">

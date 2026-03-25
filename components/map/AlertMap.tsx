@@ -2,7 +2,8 @@
 
 import { MapContainer, TileLayer } from "react-leaflet";
 import { AlertMarkers } from "./AlertMarkers";
-import type { Alert, CityCoord } from "../../lib/types";
+import { PreAlertOverlay } from "./PreAlertOverlay";
+import type { Alert, PreAlert, CityCoord } from "../../lib/types";
 
 // Fix Leaflet default marker icon paths broken by webpack
 import L from "leaflet";
@@ -15,6 +16,7 @@ L.Icon.Default.mergeOptions({
 
 interface AlertMapProps {
   alerts: Alert[];
+  preAlerts: PreAlert[];
   cityCoords: Map<string, CityCoord>;
   onAlertSelect: (alert: Alert) => void;
 }
@@ -25,7 +27,7 @@ const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-export default function AlertMap({ alerts, cityCoords, onAlertSelect }: AlertMapProps) {
+export default function AlertMap({ alerts, preAlerts, cityCoords, onAlertSelect }: AlertMapProps) {
   return (
     <MapContainer
       center={ISRAEL_CENTER}
@@ -41,6 +43,7 @@ export default function AlertMap({ alerts, cityCoords, onAlertSelect }: AlertMap
         subdomains={["a", "b", "c", "d"]}
         maxZoom={19}
       />
+      <PreAlertOverlay preAlerts={preAlerts} cityCoords={cityCoords} />
       <AlertMarkers
         alerts={alerts}
         cityCoords={cityCoords}
