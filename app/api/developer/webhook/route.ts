@@ -22,6 +22,13 @@ export async function POST(request: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
+
+    // Only process SirenWise checkouts — this webhook receives events from all products
+    const successUrl = session.success_url || "";
+    if (!successUrl.includes("sirenwise.com")) {
+      return NextResponse.json({ received: true });
+    }
+
     const email = session.customer_details?.email || "unknown";
     const apiKey = generateApiKey();
 
